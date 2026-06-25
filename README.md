@@ -1,6 +1,8 @@
-# ScamShield Analytics
+# SCAMVERSE
 
-Premium Streamlit MVP for analysing online investment scam interview transcripts and translating qualitative evidence into a multi-stakeholder prevention framework.
+**SCAMVERSE: Online Investment Scam Ecosystem Intelligence Platform**
+
+A premium modular Streamlit app for analysing online investment scam transcripts and generating dashboard, coding evidence, network ecosystem map, stakeholder matrix, mathematical framework and premium PDF/HTML report.
 
 ## Run locally
 
@@ -9,13 +11,17 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Main features
-- Upload DOCX/TXT interview transcripts
-- Auto coding into six scam ecosystem dimensions
-- Risk signal dashboard
-- Interactive ecosystem network
-- Stakeholder prevention matrix
-- Exportable tables for paper writing
+## Deploy on Streamlit Cloud
 
-## Suggested SoftwareX title
-**ScamShield Analytics: An Open-Source Decision Support System for Mapping and Preventing Online Investment Scam Ecosystems**
+Place `app.py`, `requirements.txt`, `config.py`, `modules/`, `pages/`, and `assets/` at the root of the GitHub repository.
+
+## Main outputs
+
+- Dashboard
+- Upload and transcript analysis
+- Coding evidence
+- Ecosystem map
+- Framework model
+- Premium PDF report
+- Premium HTML report
+
