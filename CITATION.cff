@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use SCAMVERSE, please cite it as below."
+title: "SCAMVERSE: An open-source intelligence platform for mapping and preventing online investment-scam ecosystems"
+version: "3.0"
+date-released: 2026-09-30
+license: BSD-3-Clause
+repository-code: "https://github.com/arie-rodzi/SCAMVERSE"
+url: "https://scamverse.streamlit.app"
+type: software
+authors:
+  - family-names: "Md Zin"
+    given-names: "Norlaila"
+    affiliation: "Institute of Leadership and Development, Universiti Teknologi MARA"
+  - family-names: "Kasim"
+    given-names: "Eley Suzana"
+    email: "eley@uitm.edu.my"
+    affiliation: "Accounting Research Institute, Universiti Teknologi MARA"
+  - family-names: "Mohd Padil"
+    given-names: "Hazlina"
+    affiliation: "Faculty of Law, Universiti Teknologi MARA Cawangan Negeri Sembilan"
+  - family-names: "Wan Ghani"
+    given-names: "Wan Aryati"
+    affiliation: "Faculty of Computer and Mathematical Sciences, Universiti Teknologi MARA Cawangan Negeri Sembilan"
+  - family-names: "Zakaria"
+    given-names: "Yuslina"
+    affiliation: "Faculty of Pharmacy, Universiti Teknologi MARA"
+  - family-names: "Md Rodzi"
+    given-names: "Zahari"
+    orcid: "https://orcid.org/0000-0003-4145-3340"
+    affiliation: "Faculty of Computer and Mathematical Sciences, Universiti Teknologi MARA Cawangan Negeri Sembilan"
+keywords:
+  - research software
+  - qualitative analytics
+  - Streamlit
+  - online investment scams
+  - decision support

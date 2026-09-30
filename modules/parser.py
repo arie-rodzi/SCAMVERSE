@@ -8,5 +8,9 @@ def extract_text(file):
     raw = file.read()
     if name.endswith('.docx'):
         doc = Document(io.BytesIO(raw))
-        return '\n'.join(p.text for p in doc.paragraphs)
+        parts = [p.text for p in doc.paragraphs]
+        for table in doc.tables:
+            for row in table.rows:
+                parts.append(' | '.join(cell.text for cell in row.cells))
+        return '\n'.join(parts)
     return raw.decode('utf-8', errors='ignore')

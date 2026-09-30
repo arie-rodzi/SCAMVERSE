@@ -1,6 +1,6 @@
 import streamlit as st
 from modules.ui import load_css, sidebar, hero, kpi
-from modules.engine import analyze_text, theme_df, risk_df, codes_df
+from modules.engine import analyze_text, theme_df, risk_df, codes_df, active_dimensions, active_indicators
 from modules.graphs import dimension_bar, risk_radar, ecosystem_network, sunburst
 from config import APP_NAME, APP_SUBTITLE, APP_VERSION
 
@@ -17,8 +17,8 @@ tdf = theme_df(analysis); rdf = risk_df(analysis); cdf = codes_df(analysis)
 st.markdown("### Executive Dashboard")
 c1,c2,c3,c4 = st.columns(4)
 with c1: kpi('Risk Score', f"{analysis['risk_score']}/100", analysis['risk_level']+' risk level')
-with c2: kpi('Dimensions', len(tdf), 'ecosystem dimensions')
-with c3: kpi('Active Indicators', len(rdf[rdf['Detected Evidence']>0]), 'warning signals')
+with c2: kpi('Active Dimensions', f"{active_dimensions(analysis)}/{len(tdf)}", 'ecosystem dimensions')
+with c3: kpi('Active Indicators', f"{active_indicators(analysis)}/{len(rdf)}", 'warning signals')
 with c4: kpi('Words Analysed', f"{len(analysis['text'].split()):,}", 'current corpus')
 
 left,right = st.columns([1.15,1])
@@ -29,11 +29,11 @@ with right:
     st.markdown('### Risk Indicator Radar')
     st.plotly_chart(risk_radar(rdf), use_container_width=True)
 
-st.markdown('### Premium System Overview')
+st.markdown('### System Overview')
 st.markdown(f"""
 <div class='card'>
 <h2 style='color:white;margin-top:0;'>🛡️ {APP_NAME} {APP_VERSION}</h2>
-<p style='color:#dbeafe;font-size:16px;'>{APP_SUBTITLE} converts interview transcripts into coding evidence, scam-risk indicators, stakeholder matrices, ecosystem maps and premium HTML/PDF reports.</p>
-<span class='success-pill'>Q1 Paper 1 Engine</span><span class='success-pill'>SoftwareX Ready</span><span class='success-pill'>HTML Report</span><span class='success-pill'>PDF Report</span>
+<p style='color:#dbeafe;font-size:16px;'>{APP_SUBTITLE} converts interview transcripts into coding evidence, scam-risk indicators, stakeholder matrices, ecosystem maps and HTML/PDF reports.</p>
+<span class='success-pill'>Thematic Coding</span><span class='success-pill'>Risk Index</span><span class='success-pill'>HTML Report</span><span class='success-pill'>PDF Report</span>
 </div>
 """, unsafe_allow_html=True)

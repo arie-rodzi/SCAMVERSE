@@ -3,7 +3,7 @@ from modules.ui import load_css, sidebar, hero
 from modules.engine import codes_df, theme_df
 from modules.graphs import sunburst
 
-st.set_page_config(page_title='Coding Evidence | SCAMVERSE', page_icon='🧠', layout='wide')
+st.set_page_config(page_title='Thematic Evidence | SCAMVERSE', page_icon='🧠', layout='wide')
 load_css(); sidebar(); hero('Thematic Evidence', 'Open coding, axial coding and dimension-level evidence synthesis')
 
 if 'analysis' not in st.session_state:
@@ -15,7 +15,7 @@ cdf = codes_df(a); tdf = theme_df(a)
 st.markdown('### Coding Evidence Table')
 st.dataframe(cdf, use_container_width=True, hide_index=True)
 
-st.markdown('### Coding-to-Dimension Sunburst')
+st.markdown('### Dimension Sunburst')
 st.plotly_chart(sunburst(tdf), use_container_width=True)
 
 st.markdown('### Evidence Extracts by Dimension')

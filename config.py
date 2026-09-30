@@ -1,5 +1,5 @@
 APP_NAME = "SCAMVERSE"
-APP_VERSION = "2.5 Premium Modular Edition"
+APP_VERSION = "3.0"
 APP_SUBTITLE = "Online Investment Scam Ecosystem Intelligence Platform"
 FRAMEWORK_NAME = "Integrated Multi-Stakeholder Prevention Framework (IMSPF)"
 PRIMARY_COLOR = "#2563EB"

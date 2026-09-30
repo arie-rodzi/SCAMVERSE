@@ -39,7 +39,7 @@ def _short(text, n=260):
 
 
 def html_report(theme_df, risk_df, codes_df, analysis):
-    """Premium self-contained HTML report preview."""
+    """Self-contained HTML report."""
     max_freq = max(theme_df['Evidence Frequency'].max(), 1) if not theme_df.empty else 1
     dim_cards = ''
     palette = [BLUE, CYAN, PURPLE, PINK, GOLD, GREEN, '#0EA5E9', '#64748B']
@@ -128,7 +128,7 @@ def html_report(theme_df, risk_df, codes_df, analysis):
         <div class='lux-grid'>
           <div class='lux-kpi'><small>Risk Score</small><b>{analysis['risk_score']}/100</b></div>
           <div class='lux-kpi'><small>Risk Level</small><b>{analysis['risk_level']}</b></div>
-          <div class='lux-kpi'><small>Dimensions</small><b>{len(theme_df)}</b></div>
+          <div class='lux-kpi'><small>Active Dimensions</small><b>{int((theme_df['Evidence Frequency']>0).sum())}/{len(theme_df)}</b></div>
           <div class='lux-kpi'><small>Words Analysed</small><b>{len(analysis.get('text','').split()):,}</b></div>
         </div>
       </div>
@@ -290,7 +290,7 @@ def _para_table(data, widths, styles, header=BLUE, font_size=7.5):
 
 
 def pdf_report(theme_df, risk_df, codes_df, analysis):
-    """Premium PDF report with cover, KPI cards, cleaner tables and no clipped text."""
+    """Paginated A4 PDF report with cover, KPI cards, cleaner tables and no clipped text."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=1.35*cm, leftMargin=1.35*cm, topMargin=1.55*cm, bottomMargin=1.35*cm)
     styles = _make_styles()
@@ -310,11 +310,11 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
     story.append(_card_table([
         ('RISK SCORE', f"{analysis['risk_score']}/100", 'Automated warning-signal index', BLUE),
         ('RISK LEVEL', analysis['risk_level'], 'Overall corpus-level profile', RED if analysis['risk_level']=='High' else GOLD),
-        ('DIMENSIONS', str(len(theme_df)), 'Integrated ecosystem dimensions', PURPLE),
+        ('ACTIVE DIMENSIONS', f"{int((theme_df['Evidence Frequency']>0).sum())}/{len(theme_df)}", 'Ecosystem dimensions with evidence', PURPLE),
         ('WORDS ANALYSED', f"{len(analysis.get('text','').split()):,}", 'Transcript corpus size', '#0F766E'),
     ], styles, columns=4))
 
-    # Dimensions as premium cards
+    # Dimensions as cards
     story.append(_section_label('2. Ecosystem Dimension Strength', styles))
     max_freq = max(theme_df['Evidence Frequency'].max(), 1) if not theme_df.empty else 1
     dim_items=[]
@@ -381,7 +381,7 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
         'Prioritise early-warning indicators involving unrealistic returns, Telegram/social-media recruitment, fake testimonials and mule-account transfers.',
         'Strengthen operational data-sharing between PDRM/CCID, BNM, banks, SSM, SKMM, NSRC and platform operators.',
         'Convert repeated coding evidence into a national prevention taxonomy for public education, investigation triage and policy design.',
-        'Use SCAMVERSE outputs as the software artefact for a SoftwareX paper and as empirical evidence support for the Q1 framework paper.'
+        'Re-run the analysis on new transcript batches to track how dimension and indicator profiles shift over time and across case types.'
     ]
     for i, rec in enumerate(recs, 1):
         story.append(Paragraph(f'<b>{i}.</b> {rec}', styles['BodyX']))
@@ -393,3 +393,12 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
     doc.build(story, onFirstPage=lambda c,d: _cover(c,d,analysis), onLaterPages=_header_footer)
     buf.seek(0)
     return buf.getvalue()
+
+
+def html_document(fragment: str) -> str:
+    """Wrap the report fragment in a complete, standalone UTF-8 HTML document for download."""
+    return ("<!DOCTYPE html>\n<html lang='en'>\n<head>\n<meta charset='utf-8'>\n"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>\n"
+            f"<title>{escape(APP_NAME)} Intelligence Report</title>\n"
+            "<style>body{margin:0;padding:24px;background:#e2e8f0;font-family:Arial,Helvetica,sans-serif;}</style>\n"
+            f"</head>\n<body>\n{fragment}\n</body>\n</html>\n")

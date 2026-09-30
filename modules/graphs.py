@@ -14,10 +14,10 @@ def risk_radar(df):
 
 def ecosystem_network():
     nodes = ['Victim','Scammer','Telegram/Facebook','Fake Testimonial','Mule Account','Bank','BNM','SSM','SKMM/Telco','NSRC','PDRM/CCID','Public Awareness','Court/DPP']
-    edges = [('Scammer','Telegram/Facebook'),('Telegram/Facebook','Victim'),('Fake Testimonial','Victim'),('Scammer','Fake Testimonial'),('Victim','Mule Account'),('Mule Account','Bank'),('Bank','BNM'),('Victim','PDRM/CCID'),('PDRM/CCID','NSRC'),('PDRM/CCID','SSM'),('PDRM/CCID','BNM'),('PDRM/CCID','Court/DPP'),('NSRC','Bank'),('SKMM/Telco','Telegram/Facebook'),('Public Awareness','Victim'),('BNM','Banks')]
+    edges = [('Scammer','Telegram/Facebook'),('Telegram/Facebook','Victim'),('Fake Testimonial','Victim'),('Scammer','Fake Testimonial'),('Victim','Mule Account'),('Mule Account','Bank'),('Bank','BNM'),('Victim','PDRM/CCID'),('PDRM/CCID','NSRC'),('PDRM/CCID','SSM'),('PDRM/CCID','BNM'),('PDRM/CCID','Court/DPP'),('NSRC','Bank'),('SKMM/Telco','Telegram/Facebook'),('Public Awareness','Victim'),('BNM','Bank')]
     G = nx.DiGraph()
     G.add_nodes_from(nodes)
-    G.add_edges_from([e for e in edges if e[0] in nodes and e[1] in nodes])
+    G.add_edges_from(edges)
     pos = nx.spring_layout(G, seed=12, k=0.85)
     edge_x, edge_y = [], []
     for a,b in G.edges():
@@ -28,6 +28,12 @@ def ecosystem_network():
         x,y = pos[n]; node_x.append(x); node_y.append(y); labels.append(n)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=edge_x, y=edge_y, mode='lines', line=dict(width=1.8, color='rgba(148,163,184,.7)'), hoverinfo='none'))
+    # Arrowheads make the edge direction of the DiGraph visible.
+    for a,b in G.edges():
+        x0,y0 = pos[a]; x1,y1 = pos[b]
+        fig.add_annotation(x=x1, y=y1, ax=x0, ay=y0, xref='x', yref='y', axref='x', ayref='y',
+                           showarrow=True, arrowhead=3, arrowsize=1.4, arrowwidth=1.6,
+                           arrowcolor='rgba(148,163,184,.85)', standoff=16, text='')
     fig.add_trace(go.Scatter(x=node_x, y=node_y, mode='markers+text', text=labels, textposition='top center', marker=dict(size=30, color=list(range(len(labels))), colorscale='Turbo', line=dict(width=2, color='white')), textfont=dict(color='white', size=12), hoverinfo='text'))
     fig.update_layout(height=650, margin=dict(l=10,r=10,t=20,b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False), yaxis=dict(visible=False), showlegend=False)
     return fig

@@ -10,12 +10,12 @@ def load_css():
 
 def sidebar():
     st.sidebar.markdown(f"# 🛡️ {APP_NAME}")
-    st.sidebar.markdown("**Premium scam ecosystem analytics**")
+    st.sidebar.markdown("**Scam ecosystem analytics**")
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Version:** {APP_VERSION}")
     st.sidebar.markdown("**Outputs:** HTML + PDF + analysis tables")
     st.sidebar.markdown("---")
-    st.sidebar.info("Use the Upload page first, then open Dashboard, Coding, Ecosystem, Framework or Report.")
+    st.sidebar.info("Use the Upload page first, then open Dashboard, Thematic Evidence, Ecosystem Map, Framework Model or Report.")
 
 def hero(title=APP_NAME, subtitle=APP_SUBTITLE):
     st.markdown(f"<div class='hero'><h1>{title}</h1><p>{subtitle}</p></div>", unsafe_allow_html=True)

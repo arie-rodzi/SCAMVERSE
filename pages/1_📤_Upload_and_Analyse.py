@@ -20,7 +20,7 @@ if st.button('🚀 Analyse Corpus'):
         st.warning('Please upload or paste transcript text first.')
     else:
         st.session_state.analysis = analyze_text(corpus)
-        st.success('Analysis completed. Open Dashboard, Coding Evidence, Ecosystem Map, Framework or Premium Report.')
+        st.success('Analysis completed. Open Dashboard, Thematic Evidence, Ecosystem Map, Framework Model or Report.')
 
 if 'analysis' in st.session_state:
     a = st.session_state.analysis
