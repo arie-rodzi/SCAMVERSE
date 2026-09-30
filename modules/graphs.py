@@ -130,7 +130,7 @@ def sunburst(df):
     temp = df[df["Evidence Frequency"] > 0].copy()
     temp['Root'] = 'Scam ecosystem'
     # colour follows the dimension (fixed lexicon order), never its rank
-    colour = {d: CATEGORICAL[i] for i, d in enumerate(THEME_KEYWORDS)}
+    colour = {d: CATEGORICAL[i % len(CATEGORICAL)] for i, d in enumerate(THEME_KEYWORDS)}
     fig = px.sunburst(temp, path=['Root', 'Dimension'], values='Evidence Frequency',
                       color='Dimension', color_discrete_map={**colour, '(?)': '#FFFFFF'})
     fig.update_traces(marker=dict(line=dict(color='white', width=2)), insidetextfont=dict(color=INK, size=12),

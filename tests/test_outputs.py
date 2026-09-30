@@ -56,3 +56,13 @@ def test_parser_txt_and_docx():
     out = extract_text(_Upload(buf.getvalue(), "b.docx"))
     assert "Paragraph text" in out and "Cell A | Cell B" in out
     assert extract_text(None) == ""
+
+
+def test_sunburst_handles_more_dimensions_than_palette(monkeypatch):
+    import modules.engine as eng
+    import modules.graphs as gr
+    extra = dict(eng.THEME_KEYWORDS, **{"Extra Dimension": ["extra"]})
+    monkeypatch.setattr(gr, "THEME_KEYWORDS", extra)
+    monkeypatch.setattr(eng, "THEME_KEYWORDS", extra)
+    a = eng.analyze_text(TEXT + " An extra term appears here.")
+    assert gr.sunburst(eng.theme_df(a)).to_dict()["data"]

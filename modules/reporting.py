@@ -111,7 +111,7 @@ def html_report(theme_df, risk_df, codes_df, analysis):
     stake_rows = ''.join(f"<tr><td>{escape(s)}</td><td>{escape(a)}</td></tr>" for s, a in STAKEHOLDERS.items())
     layers = ''.join(f"<li>{escape(x)}</li>" for x in PREVENTION_LAYERS)
     recs = ''.join(f"<li>{escape(x)}</li>" for x in RECOMMENDATIONS)
-    terms = ', '.join(f"{escape(t)} ({c})" for t, c in analysis.get('top_terms', [])[:22])
+    terms = ', '.join(f"{escape(t)} ({c})" for t, c in analysis.get('top_terms', [])[:30])
 
     return f"""
 <style>
@@ -339,7 +339,7 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
         story.append(Paragraph(f'{i}. {escape(rec)}', st['body']))
     story.append(Spacer(1, 6))
     story.append(Paragraph('<b>Most frequent terms:</b> ' + ', '.join(
-        f'{escape(t)} ({c})' for t, c in analysis.get('top_terms', [])[:22]), st['small']))
+        f'{escape(t)} ({c})' for t, c in analysis.get('top_terms', [])[:30]), st['small']))
 
     doc.build(story, onFirstPage=_page, onLaterPages=_page)
     return buf.getvalue()

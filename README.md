@@ -1,6 +1,6 @@
 # SCAMVERSE
 
-**Online Investment Scam Ecosystem Intelligence Platform — v3.0**
+**Online Investment Scam Ecosystem Intelligence Platform: v3.0**
 
 SCAMVERSE is an open-source, multi-page Streamlit application that turns interview and case transcripts about online investment scams into structured ecosystem intelligence: lexicon-based thematic coding across eight ecosystem dimensions, a bounded warning-signal risk index over eight indicators, interactive Plotly charts, a NetworkX ecosystem map, a stakeholder prevention matrix, and downloadable HTML and PDF reports. It is the software companion to the Integrated Multi-Stakeholder Prevention Framework (IMSPF).
 
@@ -23,13 +23,13 @@ The app opens at `http://localhost:8501`. No database or external service is nee
 
 ## Usage
 
-1. **Upload & Analyse** — upload one or more `.txt` / `.docx` transcripts (paragraphs and tables are read) or paste text, then click *Analyse Corpus*.
-2. **Dashboard** (`app.py`) — risk score and band, active dimensions, active indicators, word count, dimension-strength bar chart and risk-indicator radar.
-3. **Thematic Evidence** — coding-evidence table (dimension, indicative code, verbatim extract), dimension sunburst and evidence extracts per dimension.
-4. **Ecosystem Map** — directed reference graph of scam actors and institutions, with the stakeholder action matrix.
-5. **Framework Model** — IMSPF formulation and six prevention layers.
-6. **Report** — download the HTML report (standalone file) and the paginated A4 PDF report.
-7. **About** — system description.
+1. **Upload & Analyse**: upload one or more `.txt` / `.docx` transcripts (paragraphs and tables are read) or paste text, then click *Analyse Corpus*.
+2. **Dashboard** (`app.py`): risk score and band, active dimensions, active indicators, word count, dimension-strength bar chart and risk-indicator radar.
+3. **Thematic Evidence**: coding-evidence table (dimension, indicative code, verbatim extract), dimension sunburst and evidence extracts per dimension.
+4. **Ecosystem Map**: directed reference graph of scam actors and institutions, with the stakeholder action matrix.
+5. **Framework Model**: IMSPF formulation and six prevention layers.
+6. **Report**: download the HTML report (standalone file) and the paginated A4 PDF report.
+7. **About**: system description.
 
 ## Method
 
@@ -82,4 +82,4 @@ The engine is lexicon-based and English-only and does not interpret context, so 
 
 ## Support
 
-Eley Suzana Kasim — eley@uitm.edu.my
+Eley Suzana Kasim: eley@uitm.edu.my

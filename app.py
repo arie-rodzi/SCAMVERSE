@@ -7,16 +7,21 @@ from config import APP_NAME, APP_SUBTITLE, APP_VERSION
 st.set_page_config(page_title=APP_NAME, page_icon='🛡️', layout='wide')
 load_css(); sidebar(); hero()
 
-if 'analysis' not in st.session_state:
-    sample = '''Investment scam cases often involve Telegram, Facebook and WhatsApp recruitment. Scammers promise guaranteed profit, high return and fast dividends. Victims are asked to transfer money to bank accounts or mule accounts. Police, BNM, SSM, SKMM, NSRC and banks need to coordinate prevention. Awareness campaigns and scam alerts are important.'''
-    st.session_state.analysis = analyze_text(sample)
+SAMPLE = '''Investment scam cases often involve Telegram, Facebook and WhatsApp recruitment. Scammers promise guaranteed profit, high return and fast dividends. Victims are asked to transfer money to bank accounts or mule accounts. Police, BNM, SSM, SKMM, NSRC and banks need to coordinate prevention. Awareness campaigns and scam alerts are important.'''
 
-analysis = st.session_state.analysis
+if 'analysis' in st.session_state:
+    analysis = st.session_state.analysis
+else:
+    # Display-only preview; nothing is written to the session, so reports are never
+    # generated from the sample by accident.
+    analysis = analyze_text(SAMPLE)
+    st.info('No corpus analysed yet. The dashboard below shows a built-in sample sentence set. '
+            'Use Upload and Analyse to analyse your own transcripts.')
 tdf = theme_df(analysis); rdf = risk_df(analysis); cdf = codes_df(analysis)
 
 st.markdown("### Executive Dashboard")
 c1,c2,c3,c4 = st.columns(4)
-with c1: kpi('Risk Score', f"{analysis['risk_score']}/100", analysis['risk_level']+' risk level')
+with c1: kpi('Warning-signal index', f"{analysis['risk_score']}/100", analysis['risk_level'] + ' band')
 with c2: kpi('Active Dimensions', f"{active_dimensions(analysis)}/{len(tdf)}", 'ecosystem dimensions')
 with c3: kpi('Active Indicators', f"{active_indicators(analysis)}/{len(rdf)}", 'warning signals')
 with c4: kpi('Words Analysed', f"{len(analysis['text'].split()):,}", 'current corpus')
