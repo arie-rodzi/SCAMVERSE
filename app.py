@@ -32,8 +32,8 @@ with right:
 st.markdown('### System Overview')
 st.markdown(f"""
 <div class='card'>
-<h2 style='color:white;margin-top:0;'>🛡️ {APP_NAME} {APP_VERSION}</h2>
-<p style='color:#dbeafe;font-size:16px;'>{APP_SUBTITLE} converts interview transcripts into coding evidence, scam-risk indicators, stakeholder matrices, ecosystem maps and HTML/PDF reports.</p>
+<h2>{APP_NAME} {APP_VERSION}</h2>
+<p>{APP_SUBTITLE} converts interview transcripts into coding evidence, scam-risk indicators, stakeholder matrices, ecosystem maps and HTML/PDF reports.</p>
 <span class='success-pill'>Thematic Coding</span><span class='success-pill'>Risk Index</span><span class='success-pill'>HTML Report</span><span class='success-pill'>PDF Report</span>
 </div>
 """, unsafe_allow_html=True)

@@ -7,8 +7,8 @@ load_css(); sidebar(); hero('About SCAMVERSE', 'System description and documenta
 
 st.markdown(f"""
 <div class='card'>
-<h2 style='color:white;'>{APP_NAME} {APP_VERSION}</h2>
-<p style='color:#dbeafe;'>SCAMVERSE is a modular Streamlit-based decision support system for mapping and preventing online investment scam ecosystems. It is the software companion to the Integrated Multi-Stakeholder Prevention Framework (IMSPF). Source code: https://github.com/arie-rodzi/SCAMVERSE (BSD 3-Clause License).</p>
+<h2>{APP_NAME} {APP_VERSION}</h2>
+<p>SCAMVERSE is a modular Streamlit-based decision support system for mapping and preventing online investment scam ecosystems. It is the software companion to the Integrated Multi-Stakeholder Prevention Framework (IMSPF). Source code: https://github.com/arie-rodzi/SCAMVERSE (BSD 3-Clause License).</p>
 </div>
 """, unsafe_allow_html=True)
 

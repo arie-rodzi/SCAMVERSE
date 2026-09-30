@@ -1,398 +1,167 @@
+"""HTML and PDF intelligence reports.
+
+Both reports carry the same sections, built from the shared analysis object:
+summary, dimension profile, risk-indicator profile, IMSPF framework, qualitative
+evidence, coding snapshot, stakeholder matrix, recommendations and top terms.
+The layout is deliberately formal: black text, one accent colour, ruled tables.
+"""
 import io
 from datetime import datetime
 from html import escape
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak,
-    KeepTogether, HRFlowable
-)
-from config import APP_NAME, APP_SUBTITLE, FRAMEWORK_NAME
-from modules.engine import STAKEHOLDERS
 
-NAVY = '#07111F'
-BLUE = '#2563EB'
-CYAN = '#06B6D4'
-PURPLE = '#7C3AED'
-PINK = '#DB2777'
-SLATE = '#334155'
-LIGHT = '#F8FAFC'
-BORDER = '#D7E3F1'
-GOLD = '#F59E0B'
-RED = '#DC2626'
-GREEN = '#16A34A'
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.graphics.shapes import Drawing, Rect
+from reportlab.platypus import (HRFlowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
+                                Spacer, Table, TableStyle)
+
+from config import APP_NAME, APP_SUBTITLE, APP_VERSION, FRAMEWORK_NAME
+from modules.engine import RISK_CAP, STAKEHOLDERS
+
+INK = '#1B1F24'
+INK_2 = '#545B66'
+RULE = '#C9CDD3'
+FAINT = '#F4F5F7'
+ACCENT = '#1F5FA8'
+
+PREVENTION_LAYERS = [
+    'Digital-platform intelligence',
+    'Victim vulnerability reduction',
+    'Scam operational disruption',
+    'Financial-chain monitoring',
+    'Multi-agency enforcement coordination',
+    'Public resilience and rapid reporting',
+]
+
+RECOMMENDATIONS = [
+    'Prioritise early-warning indicators involving unrealistic returns, social-media recruitment, '
+    'fake testimonials and mule-account transfers.',
+    'Strengthen operational data-sharing between PDRM/CCID, BNM, banks, SSM, SKMM, NSRC and platform operators.',
+    'Convert repeated coding evidence into a prevention taxonomy for public education, investigation triage '
+    'and policy design.',
+    'Re-run the analysis on new transcript batches to track how dimension and indicator profiles shift over '
+    'time and across case types.',
+]
+
+
+def action_priority(hits: int) -> str:
+    """Action priority used in both reports (based on raw lexicon matches)."""
+    return 'Critical' if hits >= 10 else 'High' if hits >= 3 else 'Monitor' if hits > 0 else 'Low'
 
 
 def _pct(x):
     try:
         return f"{float(x) * 100:.1f}%"
-    except Exception:
+    except (TypeError, ValueError):
         return str(x)
 
 
 def _short(text, n=260):
     text = ' '.join(str(text).split())
-    return text if len(text) <= n else text[:n-1].rstrip() + '...'
+    return text if len(text) <= n else text[:n - 1].rstrip() + '...'
 
+
+def _summary_sentence(analysis, theme_df, risk_df):
+    active = int((theme_df['Evidence Frequency'] > 0).sum())
+    lead_dim = theme_df.iloc[0]['Dimension'] if not theme_df.empty and theme_df.iloc[0]['Evidence Frequency'] > 0 else None
+    top_ind = risk_df.sort_values('Detected Evidence', ascending=False)
+    lead_ind = top_ind.iloc[0]['Risk Indicator'] if not top_ind.empty and top_ind.iloc[0]['Detected Evidence'] > 0 else None
+    s = (f"The corpus of {len(analysis.get('text', '').split()):,} words returns a bounded warning-signal index of "
+         f"{analysis['risk_score']}/100 ({analysis['risk_level']} band), with evidence in {active} of "
+         f"{len(theme_df)} ecosystem dimensions.")
+    if lead_dim:
+        s += f" The strongest dimension is {lead_dim}"
+        s += f" and the most frequent indicator is {lead_ind.lower()}." if lead_ind else "."
+    return s
+
+
+# ----------------------------------------------------------------------------- HTML
 
 def html_report(theme_df, risk_df, codes_df, analysis):
-    """Self-contained HTML report."""
-    max_freq = max(theme_df['Evidence Frequency'].max(), 1) if not theme_df.empty else 1
-    dim_cards = ''
-    palette = [BLUE, CYAN, PURPLE, PINK, GOLD, GREEN, '#0EA5E9', '#64748B']
-    for i, r in theme_df.iterrows():
-        color = palette[len(dim_cards) % len(palette)] if False else palette[list(theme_df.index).index(i) % len(palette)]
-        width = max(8, int(r['Evidence Frequency'] / max_freq * 100))
-        dim_cards += f"""
-        <div class='dim-card'>
-          <div class='dim-top'><b>{escape(str(r['Dimension']))}</b><span>{r['Evidence Frequency']}</span></div>
-          <div class='bar-track'><div class='bar-fill' style='width:{width}%;background:{color};'></div></div>
-          <small>Relative weight: {_pct(r['Relative Weight'])}</small>
-        </div>"""
+    """HTML report fragment (styled block); wrap with html_document() for a standalone file."""
+    generated = datetime.now().strftime('%d %B %Y, %H:%M')
+    max_freq = max(int(theme_df['Evidence Frequency'].max()), 1) if not theme_df.empty else 1
 
-    risk_cards = ''
-    for _, r in risk_df.iterrows():
-        sev = 'risk-high' if r['Interpretation'] == 'Strong signal' else 'risk-med' if r['Interpretation'] == 'Present' else 'risk-low'
-        risk_cards += f"""
-        <div class='risk-card {sev}'>
-          <div><b>{escape(str(r['Risk Indicator']))}</b></div>
-          <span>{r['Detected Evidence']} evidence hits</span>
-          <small>{escape(str(r['Interpretation']))}</small>
-        </div>"""
+    dim_rows = ''.join(
+        f"<tr><td>{escape(str(r['Dimension']))}</td><td class='num'>{r['Evidence Frequency']}</td>"
+        f"<td class='num'>{_pct(r['Relative Weight'])}</td>"
+        f"<td><div class='bar'><span style='width:{int(r['Evidence Frequency'] / max_freq * 100)}%'></span></div></td></tr>"
+        for _, r in theme_df.iterrows())
+
+    risk_rows = ''.join(
+        f"<tr><td>{escape(str(r['Risk Indicator']))}</td><td class='num'>{r['Detected Evidence']}</td>"
+        f"<td class='num'>{r['Index Contribution']}/{RISK_CAP}</td><td class='num'>{r['Per 1,000 Words']:.2f}</td>"
+        f"<td>{escape(str(r['Interpretation']))}</td><td>{action_priority(int(r['Detected Evidence']))}</td></tr>"
+        for _, r in risk_df.iterrows())
 
     evidence_html = ''
     for theme, evs in analysis.get('evidence', {}).items():
         if evs:
-            bullets = ''.join([f"<li>{escape(_short(e, 330))}</li>" for e in evs[:3]])
-            evidence_html += f"<div class='evidence-box'><h3>{escape(theme)}</h3><ul>{bullets}</ul></div>"
+            items = ''.join(f"<li>{escape(_short(e, 330))}</li>" for e in evs[:3])
+            evidence_html += f"<h3>{escape(theme)}</h3><ul>{items}</ul>"
 
-    stakeholder_html = ''.join([
-        f"<div class='stake'><b>{escape(s)}</b><p>{escape(a)}</p></div>"
-        for s, a in STAKEHOLDERS.items()
-    ])
+    code_rows = ''.join(
+        f"<tr><td>{escape(str(r['Dimension']))}</td><td>{escape(str(r['Indicative Code']))}</td>"
+        f"<td>{escape(_short(r['Evidence Extract'], 220))}</td></tr>"
+        for _, r in codes_df.head(24).iterrows()) if not codes_df.empty else ''
 
-    terms = ', '.join([f"{escape(t)} <b>{c}</b>" for t, c in analysis.get('top_terms', [])[:18]])
-    risk_level_class = 'level-high' if analysis.get('risk_level') == 'High' else 'level-med' if analysis.get('risk_level') == 'Moderate' else 'level-low'
+    stake_rows = ''.join(f"<tr><td>{escape(s)}</td><td>{escape(a)}</td></tr>" for s, a in STAKEHOLDERS.items())
+    layers = ''.join(f"<li>{escape(x)}</li>" for x in PREVENTION_LAYERS)
+    recs = ''.join(f"<li>{escape(x)}</li>" for x in RECOMMENDATIONS)
+    terms = ', '.join(f"{escape(t)} ({c})" for t, c in analysis.get('top_terms', [])[:22])
 
     return f"""
-    <style>
-    .lux-report{{background:#fff;color:#0f172a;border-radius:28px;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.30);font-family:Inter,Arial,sans-serif;}}
-    .lux-cover{{padding:46px 44px;background:linear-gradient(135deg,#06132e 0%,#102a69 45%,#7c3aed 100%);color:white;position:relative;}}
-    .lux-cover:after{{content:'';position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.16);}}
-    .eyebrow{{letter-spacing:.16em;text-transform:uppercase;font-size:12px;color:#bae6fd;font-weight:900;}}
-    .lux-cover h1{{font-size:50px;line-height:1.02;margin:12px 0 8px;font-weight:950;letter-spacing:-1.6px;color:white;}}
-    .lux-cover p{{font-size:17px;color:#e0f2fe;max-width:780px;}}
-    .lux-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px;}}
-    .lux-kpi{{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);border-radius:20px;padding:18px;backdrop-filter:blur(8px);}}
-    .lux-kpi small{{display:block;color:#cbd5e1;font-weight:800;text-transform:uppercase;font-size:11px;}}
-    .lux-kpi b{{font-size:30px;color:white;}}
-    .lux-body{{padding:34px 42px;}}
-    .section-title{{font-size:25px;color:#0f172a;font-weight:950;margin:34px 0 14px;border-left:6px solid #2563eb;padding-left:12px;}}
-    .summary-box{{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1px solid #dbeafe;border-radius:22px;padding:22px;font-size:15px;}}
-    .level-high{{color:#991b1b;background:#fee2e2;border:1px solid #fecaca;padding:4px 10px;border-radius:999px;font-weight:900;}}
-    .level-med{{color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:4px 10px;border-radius:999px;font-weight:900;}}
-    .level-low{{color:#166534;background:#dcfce7;border:1px solid #bbf7d0;padding:4px 10px;border-radius:999px;font-weight:900;}}
-    .dim-wrap{{display:grid;grid-template-columns:1fr 1fr;gap:14px;}}
-    .dim-card{{border:1px solid #e2e8f0;background:#f8fafc;border-radius:18px;padding:16px;}}
-    .dim-top{{display:flex;justify-content:space-between;gap:10px;align-items:center;}}
-    .dim-top span{{background:#0f172a;color:white;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:900;}}
-    .bar-track{{height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:10px 0;}}
-    .bar-fill{{height:9px;border-radius:999px;}}
-    .risk-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}}
-    .risk-card{{border-radius:18px;padding:15px;border:1px solid #e2e8f0;min-height:105px;}}
-    .risk-card b{{font-size:14px;}}
-    .risk-card span{{display:block;font-size:22px;font-weight:950;margin-top:8px;}}
-    .risk-card small{{font-weight:800;}}
-    .risk-high{{background:#fff1f2;border-color:#fecdd3;}}
-    .risk-med{{background:#fffbeb;border-color:#fde68a;}}
-    .risk-low{{background:#f0fdf4;border-color:#bbf7d0;}}
-    .framework{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:16px 0;}}
-    .fw-step{{background:#0f172a;color:white;border-radius:16px;padding:14px;text-align:center;font-weight:900;font-size:13px;}}
-    .evidence-box{{border:1px solid #e2e8f0;border-radius:18px;padding:16px;margin-bottom:12px;background:white;}}
-    .evidence-box h3{{margin:0 0 8px;color:#1d4ed8;}}
-    .evidence-box li{{margin-bottom:8px;line-height:1.45;}}
-    .stake-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px;}}
-    .stake{{border:1px solid #e2e8f0;background:#f8fafc;border-radius:18px;padding:16px;}}
-    .stake b{{color:#0f172a;}}
-    .stake p{{margin:6px 0 0;color:#475569;}}
-    .terms{{background:#0f172a;color:#e2e8f0;border-radius:18px;padding:18px;line-height:1.8;}}
-    </style>
-    <div class='lux-report'>
-      <div class='lux-cover'>
-        <div class='eyebrow'>Strategic Intelligence Output</div>
-        <h1>{APP_NAME}<br/>Intelligence Report</h1>
-        <p>{APP_SUBTITLE}. Generated on {datetime.now().strftime('%d %B %Y, %I:%M %p')}.</p>
-        <div class='lux-grid'>
-          <div class='lux-kpi'><small>Risk Score</small><b>{analysis['risk_score']}/100</b></div>
-          <div class='lux-kpi'><small>Risk Level</small><b>{analysis['risk_level']}</b></div>
-          <div class='lux-kpi'><small>Active Dimensions</small><b>{int((theme_df['Evidence Frequency']>0).sum())}/{len(theme_df)}</b></div>
-          <div class='lux-kpi'><small>Words Analysed</small><b>{len(analysis.get('text','').split()):,}</b></div>
-        </div>
-      </div>
-      <div class='lux-body'>
-        <div class='section-title'>Executive Summary</div>
-        <div class='summary-box'>The analysed corpus indicates a <span class='{risk_level_class}'>{analysis['risk_level']} risk profile</span> with a score of <b>{analysis['risk_score']}/100</b>. The report translates interview evidence into a multi-layer ecosystem interpretation covering digital recruitment, psychological manipulation, victim vulnerability, financial movement, institutional response, and prevention capacity.</div>
-        <div class='section-title'>Ecosystem Dimension Strength</div>
-        <div class='dim-wrap'>{dim_cards}</div>
-        <div class='section-title'>Risk Indicator Heatmap</div>
-        <div class='risk-grid'>{risk_cards}</div>
-        <div class='section-title'>{FRAMEWORK_NAME}</div>
-        <div class='framework'><div class='fw-step'>Digital Recruitment</div><div class='fw-step'>Manipulation</div><div class='fw-step'>Victim Decision</div><div class='fw-step'>Financial Chain</div><div class='fw-step'>Institutional Response</div><div class='fw-step'>Prevention Capacity</div></div>
-        <p>The framework positions scam prevention as a connected ecosystem rather than an isolated enforcement problem.</p>
-        <div class='section-title'>Selected Qualitative Evidence</div>{evidence_html}
-        <div class='section-title'>Stakeholder Prevention Matrix</div><div class='stake-grid'>{stakeholder_html}</div>
-        <div class='section-title'>Analytical Terms</div><div class='terms'>{terms}</div>
-      </div>
-    </div>"""
-
-
-def _make_styles():
-    styles = getSampleStyleSheet()
-    for name in ['TitleX','SubTitleX','H1X','H2X','BodyX','SmallX','TinyX','WhiteTitle','WhiteBody','CardTitle','CardValue']:
-        if name in styles:
-            del styles[name]
-    styles.add(ParagraphStyle('WhiteTitle', parent=styles['Title'], textColor=colors.white, fontSize=30, leading=34, alignment=TA_LEFT, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle('WhiteBody', parent=styles['BodyText'], textColor=colors.HexColor('#E0F2FE'), fontSize=10.5, leading=14))
-    styles.add(ParagraphStyle('TitleX', parent=styles['Title'], textColor=colors.HexColor(NAVY), fontSize=24, leading=28, alignment=TA_LEFT, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle('SubTitleX', parent=styles['BodyText'], textColor=colors.HexColor(SLATE), fontSize=10.5, leading=14))
-    styles.add(ParagraphStyle('H1X', parent=styles['Heading1'], textColor=colors.HexColor(NAVY), fontSize=17, leading=20, spaceBefore=8, spaceAfter=8, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle('H2X', parent=styles['Heading2'], textColor=colors.HexColor(BLUE), fontSize=13, leading=16, spaceBefore=8, spaceAfter=6, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle('BodyX', parent=styles['BodyText'], fontSize=9.3, leading=13.2, textColor=colors.HexColor('#1E293B')))
-    styles.add(ParagraphStyle('SmallX', parent=styles['BodyText'], fontSize=7.8, leading=10.5, textColor=colors.HexColor('#334155')))
-    styles.add(ParagraphStyle('TinyX', parent=styles['BodyText'], fontSize=6.7, leading=8.5, textColor=colors.HexColor('#475569')))
-    styles.add(ParagraphStyle('CardTitle', parent=styles['BodyText'], fontSize=7.2, leading=9, textColor=colors.HexColor('#CBD5E1'), fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle('CardValue', parent=styles['BodyText'], fontSize=18, leading=21, textColor=colors.white, fontName='Helvetica-Bold'))
-    return styles
-
-
-def _p(text, style):
-    return Paragraph(escape(str(text)).replace('\n', '<br/>'), style)
-
-
-def _header_footer(canvas, doc):
-    canvas.saveState()
-    width, height = A4
-    canvas.setFillColor(colors.HexColor(NAVY))
-    canvas.rect(0, height-1.05*cm, width, 1.05*cm, stroke=0, fill=1)
-    canvas.setFillColor(colors.white)
-    canvas.setFont('Helvetica-Bold', 8)
-    canvas.drawString(1.35*cm, height-0.65*cm, f'{APP_NAME} Intelligence Report')
-    canvas.setFont('Helvetica', 7)
-    canvas.drawRightString(width-1.35*cm, height-0.65*cm, f'Page {doc.page}')
-    canvas.setFillColor(colors.HexColor('#94A3B8'))
-    canvas.setFont('Helvetica', 7)
-    canvas.drawString(1.35*cm, 0.85*cm, 'Generated by SCAMVERSE - Online Investment Scam Ecosystem Intelligence Platform')
-    canvas.restoreState()
-
-
-def _cover(canvas, doc, analysis):
-    canvas.saveState()
-    width, height = A4
-    # dark background with block gradient feel
-    colors_list = [NAVY, '#0B1F4D', '#1D4ED8', PURPLE]
-    band_h = height / len(colors_list)
-    for i, c in enumerate(colors_list):
-        canvas.setFillColor(colors.HexColor(c))
-        canvas.rect(0, height-(i+1)*band_h, width, band_h+1, stroke=0, fill=1)
-    # decorative circles
-    canvas.setFillColor(colors.Color(1,1,1, alpha=0.10))
-    canvas.circle(width-1.2*cm, height-1.4*cm, 3.2*cm, stroke=0, fill=1)
-    canvas.circle(width-5.0*cm, 2.2*cm, 2.4*cm, stroke=0, fill=1)
-    canvas.setFillColor(colors.HexColor(CYAN))
-    canvas.rect(1.35*cm, height-2.7*cm, 2.4*cm, 0.12*cm, stroke=0, fill=1)
-    canvas.setFillColor(colors.white)
-    canvas.setFont('Helvetica-Bold', 12)
-    canvas.drawString(1.35*cm, height-3.35*cm, 'STRATEGIC INTELLIGENCE OUTPUT')
-    canvas.setFont('Helvetica-Bold', 34)
-    canvas.drawString(1.35*cm, height-4.55*cm, APP_NAME)
-    canvas.drawString(1.35*cm, height-5.75*cm, 'Intelligence Report')
-    canvas.setFont('Helvetica', 11)
-    canvas.setFillColor(colors.HexColor('#E0F2FE'))
-    canvas.drawString(1.35*cm, height-6.55*cm, APP_SUBTITLE)
-    canvas.drawString(1.35*cm, height-7.10*cm, f"Generated on {datetime.now().strftime('%d %B %Y, %I:%M %p')}")
-    # KPI cards
-    card_y = height-10.1*cm
-    card_w = 4.15*cm
-    gap = 0.35*cm
-    kpis = [('Risk Score', f"{analysis['risk_score']}/100"), ('Risk Level', analysis['risk_level']), ('Dimensions', '8'), ('Corpus Words', f"{len(analysis.get('text','').split()):,}")]
-    for i,(lab,val) in enumerate(kpis):
-        x = 1.35*cm + i*(card_w+gap)
-        canvas.setFillColor(colors.Color(1,1,1, alpha=0.14))
-        canvas.roundRect(x, card_y, card_w, 2.25*cm, 12, stroke=0, fill=1)
-        canvas.setFillColor(colors.HexColor('#BAE6FD'))
-        canvas.setFont('Helvetica-Bold', 7.5)
-        canvas.drawString(x+0.32*cm, card_y+1.48*cm, lab.upper())
-        canvas.setFillColor(colors.white)
-        canvas.setFont('Helvetica-Bold', 17)
-        canvas.drawString(x+0.32*cm, card_y+0.65*cm, str(val)[:18])
-    canvas.setFillColor(colors.white)
-    canvas.setFont('Helvetica-Bold', 13)
-    canvas.drawString(1.35*cm, 3.25*cm, FRAMEWORK_NAME)
-    canvas.setFillColor(colors.HexColor('#DBEAFE'))
-    canvas.setFont('Helvetica', 9.5)
-    canvas.drawString(1.35*cm, 2.75*cm, 'Digital recruitment - manipulation - victim decision - financial chain - institutional response - prevention capacity')
-    canvas.restoreState()
-
-
-def _section_label(text, styles):
-    return KeepTogether([
-        Spacer(1, 0.08*cm),
-        Table([[Paragraph(text, styles['H1X'])]], colWidths=[16.2*cm], style=TableStyle([
-            ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#EFF6FF')),
-            ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#BFDBFE')),
-            ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
-        ]))
-    ])
-
-
-def _card_table(items, styles, columns=2):
-    rows = []
-    row = []
-    for title, value, note, color in items:
-        cell = Table([[Paragraph(title, styles['CardTitle'])],[Paragraph(value, styles['CardValue'])],[Paragraph(note, styles['TinyX'])]], colWidths=[7.75*cm if columns==2 else 3.82*cm])
-        cell.setStyle(TableStyle([
-            ('BACKGROUND',(0,0),(-1,-1),colors.HexColor(color)),
-            ('BOX',(0,0),(-1,-1),0.4,colors.HexColor(color)),
-            ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),
-        ]))
-        row.append(cell)
-        if len(row) == columns:
-            rows.append(row); row=[]
-    if row:
-        while len(row)<columns: row.append('')
-        rows.append(row)
-    t = Table(rows, colWidths=[8.05*cm]*columns if columns==2 else [4.05*cm]*columns, hAlign='LEFT')
-    t.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
-    return t
-
-
-def _para_table(data, widths, styles, header=BLUE, font_size=7.5):
-    converted = []
-    for r, row in enumerate(data):
-        converted_row = []
-        for cell in row:
-            style = styles['SmallX'] if r else ParagraphStyle('TblHeadTmp', parent=styles['SmallX'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=font_size, leading=font_size+2)
-            converted_row.append(Paragraph(escape(str(cell)), style))
-        converted.append(converted_row)
-    t = Table(converted, colWidths=widths, repeatRows=1, splitByRow=1)
-    t.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,0),colors.HexColor(header)),
-        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-        ('GRID',(0,0),(-1,-1),0.28,colors.HexColor(BORDER)),
-        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.HexColor('#F8FAFC'), colors.white]),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),
-    ]))
-    return t
-
-
-def pdf_report(theme_df, risk_df, codes_df, analysis):
-    """Paginated A4 PDF report with cover, KPI cards, cleaner tables and no clipped text."""
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=1.35*cm, leftMargin=1.35*cm, topMargin=1.55*cm, bottomMargin=1.35*cm)
-    styles = _make_styles()
-    story = []
-
-    story.append(Spacer(1, 25.5*cm))
-    story.append(PageBreak())
-
-    # Executive Summary
-    story.append(_section_label('1. Executive Summary', styles))
-    summary = (f"The analysed transcript corpus indicates a <b>{analysis['risk_level']}</b> risk profile with a score of "
-               f"<b>{analysis['risk_score']}/100</b>. The strongest signals are interpreted through the {FRAMEWORK_NAME}, "
-               "which treats online investment scams as a connected ecosystem of digital recruitment, psychological manipulation, "
-               "victim decision behaviour, financial transaction chains, institutional response and prevention capacity.")
-    story.append(Paragraph(summary, styles['BodyX']))
-    story.append(Spacer(1, 0.18*cm))
-    story.append(_card_table([
-        ('RISK SCORE', f"{analysis['risk_score']}/100", 'Automated warning-signal index', BLUE),
-        ('RISK LEVEL', analysis['risk_level'], 'Overall corpus-level profile', RED if analysis['risk_level']=='High' else GOLD),
-        ('ACTIVE DIMENSIONS', f"{int((theme_df['Evidence Frequency']>0).sum())}/{len(theme_df)}", 'Ecosystem dimensions with evidence', PURPLE),
-        ('WORDS ANALYSED', f"{len(analysis.get('text','').split()):,}", 'Transcript corpus size', '#0F766E'),
-    ], styles, columns=4))
-
-    # Dimensions as cards
-    story.append(_section_label('2. Ecosystem Dimension Strength', styles))
-    max_freq = max(theme_df['Evidence Frequency'].max(), 1) if not theme_df.empty else 1
-    dim_items=[]
-    dim_colors=[BLUE, '#0EA5E9', PURPLE, '#0F766E', PINK, GOLD, '#475569', '#1E40AF']
-    for idx, (_, r) in enumerate(theme_df.iterrows()):
-        val = f"{r['Evidence Frequency']} hits"
-        note = f"Relative weight: {_pct(r['Relative Weight'])} | intensity: {int(r['Evidence Frequency']/max_freq*100)}%"
-        dim_items.append((str(r['Dimension']).upper(), val, note, dim_colors[idx % len(dim_colors)]))
-    story.append(_card_table(dim_items, styles, columns=2))
-
-    # Risk heatmap table
-    story.append(_section_label('3. Risk Indicator Heatmap', styles))
-    risk_data = [['Risk Indicator', 'Evidence Hits', 'Signal Strength', 'Action Priority']]
-    for _, r in risk_df.iterrows():
-        hits = int(r['Detected Evidence'])
-        priority = 'Critical' if hits >= 10 else 'High' if hits >= 3 else 'Monitor' if hits > 0 else 'Low'
-        risk_data.append([r['Risk Indicator'], hits, r['Interpretation'], priority])
-    story.append(_para_table(risk_data, [7.2*cm, 2.5*cm, 3.0*cm, 3.2*cm], styles, header=PURPLE))
-
-    # Framework page
-    story.append(PageBreak())
-    story.append(_section_label(f'4. {FRAMEWORK_NAME}', styles))
-    story.append(Paragraph('The framework below translates qualitative evidence into a prevention-oriented ecosystem model. It connects upstream digital exposure to downstream enforcement and prevention response.', styles['BodyX']))
-    fw = [['Digital Recruitment', 'Manipulation Cues', 'Victim Decision', 'Financial Chain', 'Institutional Response', 'Prevention Capacity']]
-    fw_tbl = Table([[Paragraph(x, ParagraphStyle('fw', parent=styles['SmallX'], textColor=colors.white, alignment=TA_CENTER, fontName='Helvetica-Bold')) for x in fw[0]]], colWidths=[2.65*cm]*6)
-    fw_tbl.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(0,0),colors.HexColor(BLUE)),('BACKGROUND',(1,0),(1,0),colors.HexColor(PURPLE)),('BACKGROUND',(2,0),(2,0),colors.HexColor(PINK)),('BACKGROUND',(3,0),(3,0),colors.HexColor(GOLD)),('BACKGROUND',(4,0),(4,0),colors.HexColor('#0F766E')),('BACKGROUND',(5,0),(5,0),colors.HexColor(NAVY)),
-        ('BOX',(0,0),(-1,-1),0.5,colors.white),('INNERGRID',(0,0),(-1,-1),1,colors.white),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)
-    ]))
-    story.append(fw_tbl)
-    story.append(Spacer(1, 0.2*cm))
-    story.append(Paragraph('<b>Mathematical ecosystem representation</b>', styles['H2X']))
-    story.append(Paragraph('Scam ecosystem risk can be represented as <b>S = f(D, M, V, O, F, I, P)</b>, where D is digital recruitment exposure, M is manipulation intensity, V is victim vulnerability, O is operational sophistication, F is financial-chain complexity, I is institutional coordination gap and P is preventive capacity.', styles['BodyX']))
-    story.append(Paragraph('The prevention index can be expressed as <b>PI = Σ w_i C_i - Σ λ_j R_j</b>, where stakeholder capability terms reduce residual risk indicators.', styles['BodyX']))
-
-    # Evidence section
-    story.append(_section_label('5. Selected Qualitative Evidence by Dimension', styles))
-    for theme, evs in analysis.get('evidence', {}).items():
-        if not evs:
-            continue
-        story.append(KeepTogether([
-            Paragraph(theme, styles['H2X']),
-            _para_table([['Evidence Extract']] + [[_short(e, 430)] for e in evs[:3]], [16.0*cm], styles, header='#0F766E')
-        ]))
-        story.append(Spacer(1, 0.12*cm))
-
-    # Coding evidence concise appendix
-    story.append(PageBreak())
-    story.append(_section_label('6. Coding Evidence Snapshot', styles))
-    code_rows = [['Dimension', 'Indicative Code', 'Evidence Extract']]
-    if not codes_df.empty:
-        for _, r in codes_df.head(24).iterrows():
-            code_rows.append([r['Dimension'], r['Indicative Code'], _short(r['Evidence Extract'], 210)])
-    story.append(_para_table(code_rows, [4.4*cm, 3.0*cm, 8.6*cm], styles, header='#0F766E', font_size=7.2))
-
-    story.append(_section_label('7. Stakeholder Prevention Matrix', styles))
-    st_rows = [['Stakeholder', 'Prevention Role']]
-    for s, a in STAKEHOLDERS.items():
-        st_rows.append([s, a])
-    story.append(_para_table(st_rows, [4.1*cm, 11.9*cm], styles, header=NAVY))
-
-    story.append(_section_label('8. Executive Recommendations', styles))
-    recs = [
-        'Prioritise early-warning indicators involving unrealistic returns, Telegram/social-media recruitment, fake testimonials and mule-account transfers.',
-        'Strengthen operational data-sharing between PDRM/CCID, BNM, banks, SSM, SKMM, NSRC and platform operators.',
-        'Convert repeated coding evidence into a national prevention taxonomy for public education, investigation triage and policy design.',
-        'Re-run the analysis on new transcript batches to track how dimension and indicator profiles shift over time and across case types.'
-    ]
-    for i, rec in enumerate(recs, 1):
-        story.append(Paragraph(f'<b>{i}.</b> {rec}', styles['BodyX']))
-
-    story.append(Spacer(1, 0.2*cm))
-    story.append(HRFlowable(width='100%', color=colors.HexColor('#CBD5E1'), thickness=0.5))
-    story.append(Paragraph('<b>Analytical Terms:</b> ' + ', '.join([f'{escape(t)} ({c})' for t,c in analysis.get('top_terms', [])[:22]]), styles['SmallX']))
-
-    doc.build(story, onFirstPage=lambda c,d: _cover(c,d,analysis), onLaterPages=_header_footer)
-    buf.seek(0)
-    return buf.getvalue()
+<style>
+.sv-report{{max-width:920px;margin:0 auto;background:#fff;color:{INK};font-family:"Source Sans Pro","Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.5;padding:36px 44px;border:1px solid {RULE};}}
+.sv-report header{{border-bottom:2px solid {ACCENT};padding-bottom:12px;margin-bottom:18px;}}
+.sv-report header h1{{font-size:28px;margin:0;font-weight:700;}}
+.sv-report header p{{margin:4px 0 0;color:{INK_2};}}
+.sv-report h2{{font-size:19px;margin:28px 0 8px;padding-bottom:4px;border-bottom:1px solid {RULE};}}
+.sv-report h3{{font-size:15px;margin:14px 0 4px;}}
+.sv-report table{{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:14px;}}
+.sv-report th{{text-align:left;font-weight:600;border-top:1.5px solid {INK};border-bottom:1px solid {INK};padding:5px 6px;}}
+.sv-report td{{border-bottom:1px solid #E3E6EA;padding:5px 6px;vertical-align:top;}}
+.sv-report tr:last-child td{{border-bottom:1.5px solid {INK};}}
+.sv-report .num{{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}}
+.sv-report .bar{{background:{FAINT};height:9px;min-width:120px;}}
+.sv-report .bar span{{display:block;height:9px;background:{ACCENT};}}
+.sv-report .kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid {RULE};margin:10px 0;}}
+.sv-report .kpis div{{padding:10px 12px;border-right:1px solid {RULE};}}
+.sv-report .kpis div:last-child{{border-right:0;}}
+.sv-report .kpis small{{display:block;color:{INK_2};font-size:12px;text-transform:uppercase;letter-spacing:.05em;}}
+.sv-report .kpis b{{font-size:22px;font-variant-numeric:tabular-nums;}}
+.sv-report .muted{{color:{INK_2};font-size:13px;}}
+</style>
+<div class='sv-report'>
+  <header><h1>{APP_NAME} Intelligence Report</h1>
+  <p>{APP_SUBTITLE} &middot; v{APP_VERSION} &middot; generated {generated}</p></header>
+  <h2>1. Summary</h2>
+  <div class='kpis'>
+    <div><small>Warning-signal index</small><b>{analysis['risk_score']}/100</b></div>
+    <div><small>Band</small><b>{analysis['risk_level']}</b></div>
+    <div><small>Active dimensions</small><b>{int((theme_df['Evidence Frequency'] > 0).sum())}/{len(theme_df)}</b></div>
+    <div><small>Words analysed</small><b>{len(analysis.get('text', '').split()):,}</b></div>
+  </div>
+  <p>{escape(_summary_sentence(analysis, theme_df, risk_df))}</p>
+  <h2>2. Ecosystem dimension profile</h2>
+  <table><tr><th>Dimension</th><th class='num'>Matches</th><th class='num'>Share</th><th>Relative strength</th></tr>{dim_rows}</table>
+  <h2>3. Risk-indicator profile</h2>
+  <table><tr><th>Indicator</th><th class='num'>Matches</th><th class='num'>Index contribution</th><th class='num'>Per 1,000 words</th><th>Signal</th><th>Priority</th></tr>{risk_rows}</table>
+  <p class='muted'>Index = floor(100 &times; &Sigma; min(matches, {RISK_CAP}) / ({RISK_CAP} &times; {len(risk_df)})). Bands: High &ge; 70, Moderate &ge; 35, otherwise Low.</p>
+  <h2>4. {escape(FRAMEWORK_NAME)}</h2>
+  <p>Ecosystem risk is represented as S = f(D, M, V, O, F, I, P): digital recruitment, manipulation intensity, victim vulnerability, operational sophistication, financial-chain complexity, institutional coordination gap and preventive capacity. The prevention index PI = &Sigma; w<sub>i</sub>C<sub>i</sub> &minus; &Sigma; &lambda;<sub>j</sub>R<sub>j</sub> balances stakeholder capabilities against residual risk indicators. Prevention layers:</p>
+  <ol>{layers}</ol>
+  <h2>5. Qualitative evidence by dimension</h2>{evidence_html}
+  <h2>6. Coding evidence (first 24 codes)</h2>
+  <table><tr><th>Dimension</th><th>Code</th><th>Evidence extract</th></tr>{code_rows}</table>
+  <h2>7. Stakeholder prevention matrix</h2>
+  <table><tr><th>Stakeholder</th><th>Prevention role</th></tr>{stake_rows}</table>
+  <h2>8. Recommendations</h2><ol>{recs}</ol>
+  <p class='muted'><b>Most frequent terms:</b> {terms}</p>
+</div>"""
 
 
 def html_document(fragment: str) -> str:
@@ -400,5 +169,177 @@ def html_document(fragment: str) -> str:
     return ("<!DOCTYPE html>\n<html lang='en'>\n<head>\n<meta charset='utf-8'>\n"
             "<meta name='viewport' content='width=device-width, initial-scale=1'>\n"
             f"<title>{escape(APP_NAME)} Intelligence Report</title>\n"
-            "<style>body{margin:0;padding:24px;background:#e2e8f0;font-family:Arial,Helvetica,sans-serif;}</style>\n"
+            "<style>body{margin:0;padding:24px;background:#F4F5F7;}</style>\n"
             f"</head>\n<body>\n{fragment}\n</body>\n</html>\n")
+
+
+# ----------------------------------------------------------------------------- PDF
+
+def _styles():
+    ss = getSampleStyleSheet()
+    base = dict(fontName='Helvetica', textColor=colors.HexColor(INK))
+    return {
+        'title': ParagraphStyle('t', parent=ss['Title'], fontName='Helvetica-Bold', fontSize=20, leading=24,
+                                alignment=TA_LEFT, textColor=colors.HexColor(INK), spaceAfter=2),
+        'sub': ParagraphStyle('s', parent=ss['BodyText'], fontSize=9.5, leading=13, textColor=colors.HexColor(INK_2)),
+        'h1': ParagraphStyle('h1', parent=ss['Heading2'], fontName='Helvetica-Bold', fontSize=12.5, leading=16,
+                             spaceBefore=12, spaceAfter=5, textColor=colors.HexColor(INK)),
+        'h2': ParagraphStyle('h2', parent=ss['Heading3'], fontName='Helvetica-Bold', fontSize=10, leading=13,
+                             spaceBefore=6, spaceAfter=2, textColor=colors.HexColor(INK)),
+        'body': ParagraphStyle('b', parent=ss['BodyText'], fontSize=9.2, leading=13, **base),
+        'cell': ParagraphStyle('c', parent=ss['BodyText'], fontSize=8.2, leading=10.4, **base),
+        'cellb': ParagraphStyle('cb', parent=ss['BodyText'], fontSize=8.2, leading=10.4, fontName='Helvetica-Bold',
+                                textColor=colors.HexColor(INK)),
+        'small': ParagraphStyle('sm', parent=ss['BodyText'], fontSize=7.8, leading=10.2,
+                                textColor=colors.HexColor(INK_2)),
+        'kpil': ParagraphStyle('kl', parent=ss['BodyText'], fontSize=7, leading=9, textColor=colors.HexColor(INK_2)),
+        'kpiv': ParagraphStyle('kv', parent=ss['BodyText'], fontSize=15, leading=18, fontName='Helvetica-Bold',
+                               textColor=colors.HexColor(INK)),
+    }
+
+
+def _booktabs(rows, widths, st, num_cols=()):
+    """Ruled table: heavy top/bottom rules, light rule under the header, no fills."""
+    data = []
+    for i, row in enumerate(rows):
+        out = []
+        for j, v in enumerate(row):
+            if hasattr(v, 'wrap'):
+                out.append(v)
+            else:
+                style = st['cellb'] if i == 0 else st['cell']
+                if j in num_cols:
+                    style = ParagraphStyle('n', parent=style, alignment=2)
+                out.append(Paragraph(escape(str(v)), style))
+        data.append(out)
+    t = Table(data, colWidths=widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, 0), 1.0, colors.HexColor(INK)),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.6, colors.HexColor(INK)),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.0, colors.HexColor(INK)),
+        ('LINEBELOW', (0, 1), (-1, -2), 0.25, colors.HexColor('#E3E6EA')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    return t
+
+
+def _bar(fraction, width=4.2 * cm, height=0.22 * cm):
+    d = Drawing(width, height + 2)
+    d.add(Rect(0, 1, width, height, fillColor=colors.HexColor(FAINT), strokeColor=None))
+    d.add(Rect(0, 1, max(width * fraction, 0.5), height, fillColor=colors.HexColor(ACCENT), strokeColor=None))
+    return d
+
+
+def _page(canvas, doc):
+    canvas.saveState()
+    w, h = A4
+    canvas.setStrokeColor(colors.HexColor(RULE)); canvas.setLineWidth(0.5)
+    canvas.line(2 * cm, h - 1.35 * cm, w - 2 * cm, h - 1.35 * cm)
+    canvas.setFont('Helvetica', 7.5); canvas.setFillColor(colors.HexColor(INK_2))
+    canvas.drawString(2 * cm, h - 1.15 * cm, f'{APP_NAME} Intelligence Report')
+    canvas.drawRightString(w - 2 * cm, h - 1.15 * cm, f'v{APP_VERSION}')
+    canvas.line(2 * cm, 1.35 * cm, w - 2 * cm, 1.35 * cm)
+    canvas.drawString(2 * cm, 0.95 * cm, 'Generated automatically from the analysed transcript corpus.')
+    canvas.drawRightString(w - 2 * cm, 0.95 * cm, f'Page {doc.page}')
+    canvas.restoreState()
+
+
+def pdf_report(theme_df, risk_df, codes_df, analysis):
+    """Paginated A4 PDF report; returns the PDF as bytes."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm,
+                            topMargin=1.9 * cm, bottomMargin=1.8 * cm,
+                            title=f'{APP_NAME} Intelligence Report', author=APP_NAME)
+    st = _styles()
+    full = doc.width
+    story = []
+
+    story.append(Paragraph(f'{APP_NAME} Intelligence Report', st['title']))
+    story.append(Paragraph(f"{APP_SUBTITLE} &middot; generated {datetime.now().strftime('%d %B %Y, %H:%M')}", st['sub']))
+    story.append(Spacer(1, 4))
+    story.append(HRFlowable(width='100%', color=colors.HexColor(ACCENT), thickness=1.6, spaceAfter=8))
+
+    # 1. Summary
+    story.append(Paragraph('1. Summary', st['h1']))
+    kpis = [('Warning-signal index', f"{analysis['risk_score']}/100"), ('Band', analysis['risk_level']),
+            ('Active dimensions', f"{int((theme_df['Evidence Frequency'] > 0).sum())}/{len(theme_df)}"),
+            ('Words analysed', f"{len(analysis.get('text', '').split()):,}")]
+    kt = Table([[[Paragraph(l.upper(), st['kpil']), Paragraph(v, st['kpiv'])] for l, v in kpis]],
+               colWidths=[full / 4] * 4)
+    kt.setStyle(TableStyle([('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor(RULE)),
+                            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor(RULE)),
+                            ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 8)]))
+    story.append(kt)
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(escape(_summary_sentence(analysis, theme_df, risk_df)), st['body']))
+
+    # 2. Dimensions
+    story.append(Paragraph('2. Ecosystem dimension profile', st['h1']))
+    max_freq = max(int(theme_df['Evidence Frequency'].max()), 1) if not theme_df.empty else 1
+    rows = [['Dimension', 'Matches', 'Share', 'Relative strength']]
+    for _, r in theme_df.iterrows():
+        rows.append([r['Dimension'], r['Evidence Frequency'], _pct(r['Relative Weight']),
+                     _bar(r['Evidence Frequency'] / max_freq)])
+    story.append(_booktabs(rows, [7.4 * cm, 1.9 * cm, 1.9 * cm, full - 11.2 * cm], st, num_cols=(1, 2)))
+
+    # 3. Risk indicators
+    story.append(Paragraph('3. Risk-indicator profile', st['h1']))
+    rows = [['Indicator', 'Matches', f'Contribution (of {RISK_CAP})', 'Per 1,000 words', 'Signal', 'Priority']]
+    for _, r in risk_df.iterrows():
+        rows.append([r['Risk Indicator'], r['Detected Evidence'], r['Index Contribution'],
+                     f"{r['Per 1,000 Words']:.2f}", r['Interpretation'], action_priority(int(r['Detected Evidence']))])
+    story.append(_booktabs(rows, [5.4 * cm, 1.5 * cm, 2.3 * cm, 2.2 * cm, 2.3 * cm, full - 13.7 * cm], st,
+                           num_cols=(1, 2, 3)))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(f'Index = floor(100 &times; &Sigma; min(matches, {RISK_CAP}) / ({RISK_CAP} &times; '
+                           f'{len(risk_df)})). Bands: High &ge; 70, Moderate &ge; 35, otherwise Low. The per-1,000-word '
+                           'density is uncapped and comparable across corpora of different size.', st['small']))
+
+    # 4. Framework
+    story.append(Paragraph(f'4. {escape(FRAMEWORK_NAME)}', st['h1']))
+    story.append(Paragraph('Ecosystem risk is represented as <i>S = f(D, M, V, O, F, I, P)</i>, where D is digital '
+                           'recruitment exposure, M manipulation intensity, V victim vulnerability, O operational '
+                           'sophistication, F financial-chain complexity, I institutional coordination gap and P '
+                           'preventive capacity. The prevention index <i>PI = &Sigma; w<sub>i</sub>C<sub>i</sub> '
+                           '&minus; &Sigma; &lambda;<sub>j</sub>R<sub>j</sub></i> balances stakeholder capabilities '
+                           'against residual risk indicators.', st['body']))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph('Prevention layers: ' + '; '.join(f'({i}) {x}' for i, x in enumerate(PREVENTION_LAYERS, 1))
+                           + '.', st['body']))
+
+    # 5. Evidence
+    story.append(Paragraph('5. Qualitative evidence by dimension', st['h1']))
+    for theme, evs in analysis.get('evidence', {}).items():
+        if not evs:
+            continue
+        block = [Paragraph(escape(theme), st['h2'])]
+        block += [Paragraph('&bull;&nbsp; ' + escape(_short(e, 430)), st['cell']) for e in evs[:3]]
+        story.append(KeepTogether(block))
+
+    # 6. Coding snapshot
+    story.append(PageBreak())
+    story.append(Paragraph('6. Coding evidence (first 24 codes)', st['h1']))
+    rows = [['Dimension', 'Code', 'Evidence extract']]
+    if not codes_df.empty:
+        for _, r in codes_df.head(24).iterrows():
+            rows.append([r['Dimension'], r['Indicative Code'], _short(r['Evidence Extract'], 210)])
+    story.append(_booktabs(rows, [4.6 * cm, 2.4 * cm, full - 7.0 * cm], st))
+
+    # 7. Stakeholders
+    story.append(Paragraph('7. Stakeholder prevention matrix', st['h1']))
+    rows = [['Stakeholder', 'Prevention role']] + [[s, a] for s, a in STAKEHOLDERS.items()]
+    story.append(_booktabs(rows, [3.8 * cm, full - 3.8 * cm], st))
+
+    # 8. Recommendations and terms
+    story.append(Paragraph('8. Recommendations', st['h1']))
+    for i, rec in enumerate(RECOMMENDATIONS, 1):
+        story.append(Paragraph(f'{i}. {escape(rec)}', st['body']))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph('<b>Most frequent terms:</b> ' + ', '.join(
+        f'{escape(t)} ({c})' for t, c in analysis.get('top_terms', [])[:22]), st['small']))
+
+    doc.build(story, onFirstPage=_page, onLaterPages=_page)
+    return buf.getvalue()

@@ -7,8 +7,8 @@ load_css(); sidebar(); hero('Framework Model', FRAMEWORK_NAME)
 
 st.markdown("""
 <div class='card'>
-<h2 style='color:white;'>Integrated Framework Logic</h2>
-<p style='color:#dbeafe;font-size:16px;'>SCAMVERSE models online investment scams as a layered ecosystem involving digital recruitment, manipulation, victim vulnerability, scammer operations, financial laundering, institutional response and prevention capacity.</p>
+<h2>Integrated Framework Logic</h2>
+<p>SCAMVERSE models online investment scams as a layered ecosystem involving digital recruitment, manipulation, victim vulnerability, scammer operations, financial laundering, institutional response and prevention capacity.</p>
 </div>
 """, unsafe_allow_html=True)
 

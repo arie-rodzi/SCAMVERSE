@@ -25,8 +25,9 @@ def test_figures_build():
 
 def test_ecosystem_network_edges_all_drawn():
     fig = ecosystem_network()
-    # one arrow annotation per directed edge (16 edges defined)
-    assert len(fig.layout.annotations) == 16
+    # one arrow annotation per directed edge (16) plus one label per node (13)
+    arrows = [a for a in fig.layout.annotations if a.showarrow]
+    assert len(arrows) == 16 and len(fig.layout.annotations) == 16 + 13
 
 
 def test_reports_build():

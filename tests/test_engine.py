@@ -94,6 +94,10 @@ def test_active_counts_and_frames():
     assert active_dimensions(a) == int((tdf["Evidence Frequency"] > 0).sum())
     assert active_indicators(a) == int((rdf["Detected Evidence"] > 0).sum())
     assert abs(tdf["Relative Weight"].sum() - 1) < 0.01
+    words = len(SAMPLE.split())
+    for _, r in rdf.iterrows():
+        assert r["Index Contribution"] == min(r["Detected Evidence"], 5)
+        assert r["Per 1,000 Words"] == round(r["Detected Evidence"] * 1000 / words, 2)
     # Every coded extract must come from the source text.
     for extract in codes_df(a)["Evidence Extract"]:
         assert extract in SAMPLE

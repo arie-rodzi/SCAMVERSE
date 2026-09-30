@@ -24,6 +24,8 @@ RISK_RULES = {
     "Urgency pressure": ["urgent", "immediate", "short period", "limited", "act now", "within 3 hours"],
 }
 
+RISK_CAP = 5  # maximum hits per indicator that count towards the bounded index
+
 STAKEHOLDERS = {
     "PDRM / CCID": "Investigation, evidence gathering, arrest, prosecution support, public warnings and inter-agency coordination.",
     "BNM": "Financial licensing, financial consumer alert list, transaction-monitoring guidance and banking coordination.",
@@ -87,8 +89,8 @@ def analyze_text(text: str):
                 if len(evidence[theme]) >= 5:
                     break
     risk_hits = {rule: sum(count_term(k, lower) for k in keys) for rule, keys in RISK_RULES.items()}
-    raw_score = sum(min(v, 5) for v in risk_hits.values())
-    risk_score = min(100, int(raw_score / (len(RISK_RULES) * 5) * 100))
+    raw_score = sum(min(v, RISK_CAP) for v in risk_hits.values())
+    risk_score = min(100, int(raw_score / (len(RISK_RULES) * RISK_CAP) * 100))
     risk_level = "High" if risk_score >= 70 else "Moderate" if risk_score >= 35 else "Low"
     words = re.findall(r"[A-Za-z]{4,}", lower)
     top_terms = Counter([w for w in words if w not in STOPWORDS]).most_common(30)
@@ -107,9 +109,24 @@ def theme_df(analysis):
     total = sum(counts.values()) or 1
     return pd.DataFrame({"Dimension": list(counts.keys()), "Evidence Frequency": list(counts.values()), "Relative Weight": [round(v/total, 3) for v in counts.values()]}).sort_values("Evidence Frequency", ascending=False)
 
+def word_count(text: str) -> int:
+    return len((text or "").split())
+
 def risk_df(analysis):
+    """Per-indicator hits, capped contribution to the index, and density per 1,000 words.
+
+    The density column is independent of the cap, so indicators remain comparable
+    across corpora of different sizes even when the bounded index saturates.
+    """
     hits = analysis["risk_hits"]
-    return pd.DataFrame({"Risk Indicator": list(hits.keys()), "Detected Evidence": list(hits.values()), "Interpretation": ["Strong signal" if v>=3 else "Present" if v>0 else "Not detected" for v in hits.values()]})
+    words = max(word_count(analysis.get("text", "")), 1)
+    return pd.DataFrame({
+        "Risk Indicator": list(hits.keys()),
+        "Detected Evidence": list(hits.values()),
+        "Index Contribution": [min(v, RISK_CAP) for v in hits.values()],
+        "Per 1,000 Words": [round(v * 1000 / words, 2) for v in hits.values()],
+        "Interpretation": ["Strong signal" if v >= 3 else "Present" if v > 0 else "Not detected" for v in hits.values()],
+    })
 
 def codes_df(analysis):
     df = pd.DataFrame(analysis.get("codes", []))

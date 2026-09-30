@@ -9,7 +9,7 @@ def load_css():
     st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 def sidebar():
-    st.sidebar.markdown(f"# 🛡️ {APP_NAME}")
+    st.sidebar.markdown(f"### {APP_NAME}")
     st.sidebar.markdown("**Scam ecosystem analytics**")
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Version:** {APP_VERSION}")
