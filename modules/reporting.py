@@ -67,8 +67,8 @@ def _short(text, n=260):
 def _summary_sentence(analysis, theme_df, risk_df):
     active = int((theme_df['Evidence Frequency'] > 0).sum())
     lead_dim = theme_df.iloc[0]['Dimension'] if not theme_df.empty and theme_df.iloc[0]['Evidence Frequency'] > 0 else None
-    top_ind = risk_df.sort_values('Detected Evidence', ascending=False)
-    lead_ind = top_ind.iloc[0]['Risk Indicator'] if not top_ind.empty and top_ind.iloc[0]['Detected Evidence'] > 0 else None
+    top_ind = risk_df.sort_values('Matches', ascending=False, kind='stable')
+    lead_ind = top_ind.iloc[0]['Warning Indicator'] if not top_ind.empty and top_ind.iloc[0]['Matches'] > 0 else None
     s = (f"The corpus of {len(analysis.get('text', '').split()):,} words returns a bounded warning-signal index of "
          f"{analysis['risk_score']}/100 ({analysis['risk_level']} band), with evidence in {active} of "
          f"{len(theme_df)} ecosystem dimensions.")
@@ -76,6 +76,13 @@ def _summary_sentence(analysis, theme_df, risk_df):
         s += f" The strongest dimension is {lead_dim}"
         s += f" and the most frequent indicator is {lead_ind.lower()}." if lead_ind else "."
     return s
+
+
+def _provenance(analysis):
+    """Reproducibility record: software version, lexicon and corpus fingerprints."""
+    lex = analysis.get('lexicon_name', 'default')
+    return (f"Reproducibility: {APP_NAME} v{APP_VERSION}; {lex} lexicon SHA-256 "
+            f"{analysis.get('lexicon_sha256', 'n/a')[:16]}; corpus SHA-256 {analysis.get('corpus_sha256', 'n/a')[:16]}.")
 
 
 # ----------------------------------------------------------------------------- HTML
@@ -92,9 +99,9 @@ def html_report(theme_df, risk_df, codes_df, analysis):
         for _, r in theme_df.iterrows())
 
     risk_rows = ''.join(
-        f"<tr><td>{escape(str(r['Risk Indicator']))}</td><td class='num'>{r['Detected Evidence']}</td>"
+        f"<tr><td>{escape(str(r['Warning Indicator']))}</td><td class='num'>{r['Matches']}</td>"
         f"<td class='num'>{r['Index Contribution']}/{RISK_CAP}</td><td class='num'>{r['Per 1,000 Words']:.2f}</td>"
-        f"<td>{escape(str(r['Interpretation']))}</td><td>{action_priority(int(r['Detected Evidence']))}</td></tr>"
+        f"<td>{escape(str(r['Interpretation']))}</td><td>{action_priority(int(r['Matches']))}</td></tr>"
         for _, r in risk_df.iterrows())
 
     evidence_html = ''
@@ -146,11 +153,12 @@ def html_report(theme_df, risk_df, codes_df, analysis):
     <div><small>Words analysed</small><b>{len(analysis.get('text', '').split()):,}</b></div>
   </div>
   <p>{escape(_summary_sentence(analysis, theme_df, risk_df))}</p>
+  <p class='muted'>{escape(_provenance(analysis))}</p>
   <h2>2. Ecosystem dimension profile</h2>
   <table><tr><th>Dimension</th><th class='num'>Matches</th><th class='num'>Share</th><th>Relative strength</th></tr>{dim_rows}</table>
-  <h2>3. Risk-indicator profile</h2>
+  <h2>3. Warning-indicator profile</h2>
   <table><tr><th>Indicator</th><th class='num'>Matches</th><th class='num'>Index contribution</th><th class='num'>Per 1,000 words</th><th>Signal</th><th>Priority</th></tr>{risk_rows}</table>
-  <p class='muted'>Index = floor(100 &times; &Sigma; min(matches, {RISK_CAP}) / ({RISK_CAP} &times; {len(risk_df)})). Bands: High &ge; 70, Moderate &ge; 35, otherwise Low.</p>
+  <p class='muted'>Index = floor(100 &times; &Sigma; min(matches, {RISK_CAP}) / ({RISK_CAP} &times; {len(risk_df)})). Bands: High &ge; 70, Moderate &ge; 35, otherwise Low. Bands, signal and priority (raw matches: Critical &ge; 10, High &ge; 3, Monitor &ge; 1) are descriptive and uncalibrated.</p>
   <h2>4. {escape(FRAMEWORK_NAME)}</h2>
   <p>Ecosystem risk is represented as S = f(D, M, V, O, F, I, P): digital recruitment, manipulation intensity, victim vulnerability, operational sophistication, financial-chain complexity, institutional coordination gap and preventive capacity. The prevention index PI = &Sigma; w<sub>i</sub>C<sub>i</sub> &minus; &Sigma; &lambda;<sub>j</sub>R<sub>j</sub> balances stakeholder capabilities against residual risk indicators. Prevention layers:</p>
   <ol>{layers}</ol>
@@ -275,6 +283,8 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
     story.append(kt)
     story.append(Spacer(1, 6))
     story.append(Paragraph(escape(_summary_sentence(analysis, theme_df, risk_df)), st['body']))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(escape(_provenance(analysis)), st['small']))
 
     # 2. Dimensions
     story.append(Paragraph('2. Ecosystem dimension profile', st['h1']))
@@ -286,17 +296,18 @@ def pdf_report(theme_df, risk_df, codes_df, analysis):
     story.append(_booktabs(rows, [7.4 * cm, 1.9 * cm, 1.9 * cm, full - 11.2 * cm], st, num_cols=(1, 2)))
 
     # 3. Risk indicators
-    story.append(Paragraph('3. Risk-indicator profile', st['h1']))
+    story.append(Paragraph('3. Warning-indicator profile', st['h1']))
     rows = [['Indicator', 'Matches', f'Contribution (of {RISK_CAP})', 'Per 1,000 words', 'Signal', 'Priority']]
     for _, r in risk_df.iterrows():
-        rows.append([r['Risk Indicator'], r['Detected Evidence'], r['Index Contribution'],
-                     f"{r['Per 1,000 Words']:.2f}", r['Interpretation'], action_priority(int(r['Detected Evidence']))])
+        rows.append([r['Warning Indicator'], r['Matches'], r['Index Contribution'],
+                     f"{r['Per 1,000 Words']:.2f}", r['Interpretation'], action_priority(int(r['Matches']))])
     story.append(_booktabs(rows, [5.4 * cm, 1.5 * cm, 2.3 * cm, 2.2 * cm, 2.3 * cm, full - 13.7 * cm], st,
                            num_cols=(1, 2, 3)))
     story.append(Spacer(1, 3))
     story.append(Paragraph(f'Index = floor(100 &times; &Sigma; min(matches, {RISK_CAP}) / ({RISK_CAP} &times; '
                            f'{len(risk_df)})). Bands: High &ge; 70, Moderate &ge; 35, otherwise Low. The per-1,000-word '
-                           'density is uncapped and comparable across corpora of different size.', st['small']))
+                           'density is uncapped and comparable across corpora of different size. Bands, signal and priority are '
+                           'descriptive heuristics (priority on raw matches: Critical &ge; 10, High &ge; 3, Monitor &ge; 1) and are not calibrated.', st['small']))
 
     # 4. Framework
     story.append(Paragraph(f'4. {escape(FRAMEWORK_NAME)}', st['h1']))

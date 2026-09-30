@@ -19,6 +19,13 @@ CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300",
 FONT = dict(family="Source Sans Pro, Segoe UI, Arial, sans-serif", size=13, color=INK)
 
 
+def _dim_colours(names):
+    """Colour per dimension: default dimensions keep a fixed colour (lexicon order);
+    any custom dimensions follow, cycling the palette. Colour never follows rank."""
+    order = list(THEME_KEYWORDS) + [n for n in names if n not in THEME_KEYWORDS]
+    return {n: CATEGORICAL[i % len(CATEGORICAL)] for i, n in enumerate(order)}
+
+
 def _base(fig, height):
     fig.update_layout(height=height, template="simple_white", font=FONT,
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -29,7 +36,7 @@ def _base(fig, height):
 def dimension_bar(df):
     d = df.sort_values("Evidence Frequency", ascending=True)
     # colour identifies the dimension (fixed lexicon order), never its rank
-    colour = {k: CATEGORICAL[i % len(CATEGORICAL)] for i, k in enumerate(THEME_KEYWORDS)}
+    colour = _dim_colours(list(d["Dimension"]))
     fig = go.Figure(go.Bar(
         x=d["Evidence Frequency"], y=d["Dimension"], orientation="h",
         marker=dict(color=[colour.get(x, ACCENT) for x in d["Dimension"]], line=dict(width=0)),
@@ -58,10 +65,10 @@ RADAR_LABELS = {
 
 
 def risk_radar(df):
-    labels = [RADAR_LABELS.get(x, x) for x in df["Risk Indicator"]]
+    labels = [RADAR_LABELS.get(x, x) for x in df["Warning Indicator"]]
     theta = labels + [labels[0]]
     r = list(df["Index Contribution"]) + [df["Index Contribution"].iloc[0]]
-    raw = list(df["Detected Evidence"]) + [df["Detected Evidence"].iloc[0]]
+    raw = list(df["Matches"]) + [df["Matches"].iloc[0]]
     fig = go.Figure(go.Scatterpolar(
         r=r, theta=theta, fill="toself", fillcolor=ACCENT_FILL,
         line=dict(color=ACCENT, width=2), marker=dict(size=8, color=ACCENT),
@@ -85,6 +92,10 @@ LAYOUT = {
     'Bank': (4.0, 1.25), 'NSRC': (3.55, 0.45), 'SSM': (4.0, -0.35), 'Court/DPP': (4.0, -1.1),
     'BNM': (5.0, 0.45),
 }
+
+
+# Label offsets (pixels) chosen so that no label covers an incoming arrowhead.
+LABEL_OFFSET = {'Victim': (-38, 0), 'Bank': (0, 22), 'NSRC': (34, 0), 'Mule Account': (0, 22)}
 
 
 def ecosystem_network():
@@ -120,7 +131,8 @@ def ecosystem_network():
             hovertemplate='%{text}<extra></extra>'))
     # Node labels as annotations with a white backing so edges never run through the text.
     for n in G.nodes():
-        fig.add_annotation(x=pos[n][0], y=pos[n][1], text=n, showarrow=False, yshift=-22,
+        dx, dy = LABEL_OFFSET.get(n, (0, -22))
+        fig.add_annotation(x=pos[n][0], y=pos[n][1], text=n, showarrow=False, xshift=dx, yshift=dy,
                            font=dict(color=INK, size=12), bgcolor='rgba(255,255,255,0.92)', borderpad=1)
     _base(fig, 560)
     fig.update_layout(xaxis=dict(visible=False, range=[-0.45, 5.45]), yaxis=dict(visible=False, range=[-1.45, 1.6]),
@@ -132,7 +144,7 @@ def sunburst(df):
     temp = df[df["Evidence Frequency"] > 0].copy()
     temp['Root'] = 'Scam ecosystem'
     # colour follows the dimension (fixed lexicon order), never its rank
-    colour = {d: CATEGORICAL[i % len(CATEGORICAL)] for i, d in enumerate(THEME_KEYWORDS)}
+    colour = _dim_colours(list(df["Dimension"]))
     fig = px.sunburst(temp, path=['Root', 'Dimension'], values='Evidence Frequency',
                       color='Dimension', color_discrete_map={**colour, '(?)': '#FFFFFF'})
     fig.update_traces(marker=dict(line=dict(color='white', width=2)), insidetextfont=dict(color=INK, size=12),

@@ -1,8 +1,14 @@
 """Unit tests for the SCAMVERSE analysis engine (no Streamlit required)."""
 import pytest
 
+import json
+
 from modules.engine import (
+    count_terms,
     RISK_RULES,
+    default_lexicon,
+    load_lexicon,
+    prepare_text,
     THEME_KEYWORDS,
     active_dimensions,
     active_indicators,
@@ -36,6 +42,9 @@ SAMPLE = (
         ("30%", "a 30% return", 1),
         ("30%", "a 300% return", 0),
         ("social media", "via social media groups", 1),
+        ("guarantee", "a guaranteed return", 1),          # inflectional suffix accepted
+        ("arrest", "suspects were arrested", 1),
+        ("layer", "layering of funds", 1),
     ],
 )
 def test_count_term_whole_word(term, text, expected):
@@ -92,12 +101,62 @@ def test_active_counts_and_frames():
     a = analyze_text(SAMPLE)
     tdf, rdf = theme_df(a), risk_df(a)
     assert active_dimensions(a) == int((tdf["Evidence Frequency"] > 0).sum())
-    assert active_indicators(a) == int((rdf["Detected Evidence"] > 0).sum())
+    assert active_indicators(a) == int((rdf["Matches"] > 0).sum())
     assert abs(tdf["Relative Weight"].sum() - 1) < 0.01
     words = len(SAMPLE.split())
     for _, r in rdf.iterrows():
-        assert r["Index Contribution"] == min(r["Detected Evidence"], 5)
-        assert r["Per 1,000 Words"] == round(r["Detected Evidence"] * 1000 / words, 2)
+        assert r["Index Contribution"] == min(r["Matches"], 5)
+        assert r["Per 1,000 Words"] == round(r["Matches"] * 1000 / words, 2)
     # Every coded extract must come from the source text.
     for extract in codes_df(a)["Evidence Extract"]:
         assert extract in SAMPLE
+
+
+# --- normalisation, speaker turns, lexicons, provenance -------------------------
+
+def test_line_breaks_do_not_split_multiword_terms():
+    # regression: counts and evidence must use the same normalised text
+    a = analyze_text("Victims were recruited through social\nmedia groups every single day.")
+    assert count_term("social media", "social media") == 1
+    assert a["theme_counts"]["Digital Recruitment Infrastructure"] >= 2   # social media + group
+    assert active_dimensions(a) >= 1 and len(a["codes"]) >= 1
+
+
+def test_prepare_text_removes_interviewer_turns_and_labels():
+    raw = ("Interviewer: What do the offenders promise?\n"
+           "Officer A: A guaranteed return.\n"
+           "They also send receipts.\n\n"
+           "Interviewer: Anything else?\nNot really.\n")
+    out = prepare_text(raw)
+    assert "promise" not in out and "Officer A:" not in out
+    assert "A guaranteed return." in out and "They also send receipts." in out
+    kept = prepare_text(raw, strip_labels=False, exclude_speakers=())
+    assert "Interviewer: What do the offenders promise?" in kept and "Officer A:" in kept
+
+
+def test_custom_lexicon_and_hashes():
+    lex = load_lexicon(json.dumps({"dimensions": {"Only": ["telegram"]}, "indicators": {"Ind": ["profit"]}}))
+    a = analyze_text("Telegram groups promised profit and more profit.", lex)
+    assert a["theme_counts"] == {"Only": 1} and a["risk_hits"] == {"Ind": 2}
+    assert a["risk_score"] == int(2 / 5 * 100) and a["lexicon_name"] == "custom"
+    b = analyze_text("Telegram groups promised profit and more profit.")
+    assert a["corpus_sha256"] == b["corpus_sha256"] and a["lexicon_sha256"] != b["lexicon_sha256"]
+    assert b["lexicon_sha256"] == analyze_text("x", default_lexicon())["lexicon_sha256"]
+
+
+def test_load_lexicon_rejects_bad_input():
+    with pytest.raises(ValueError):
+        load_lexicon(json.dumps({"dimensions": {}, "indicators": {"a": ["b"]}}))
+    with pytest.raises(ValueError):
+        load_lexicon(json.dumps({"dimensions": {"a": []}, "indicators": {"a": ["b"]}}))
+
+
+def test_acronym_codes_are_upper_case():
+    a = analyze_text("The report was lodged with PDRM and SSM on the same day.")
+    assert {"PDRM", "SSM"} & set(codes_df(a)["Indicative Code"])
+
+
+def test_overlapping_terms_count_once():
+    assert count_terms(["high return", "return"], "a high return and a return") == 2
+    assert count_terms(["guarantee", "guaranteed"], "guaranteed profit") == 1
+    assert count_terms(["mule", "account"], "mule account") == 2   # adjacent, not overlapping

@@ -22,3 +22,17 @@ def hero(title=APP_NAME, subtitle=APP_SUBTITLE):
 
 def kpi(label, value, note):
     st.markdown(f"<div class='kpi'><div class='label'>{label}</div><div class='value'>{value}</div><div class='note'>{note}</div></div>", unsafe_allow_html=True)
+
+
+def full_width(fn):
+    """Keyword arguments that make a Streamlit element fill its container.
+
+    Newer Streamlit versions use ``width="stretch"`` and deprecate
+    ``use_container_width``; older versions only know the latter.
+    """
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        params = {}
+    return {"width": "stretch"} if "width" in params else {"use_container_width": True}

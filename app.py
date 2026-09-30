@@ -1,7 +1,7 @@
 import streamlit as st
-from modules.ui import load_css, sidebar, hero, kpi
-from modules.engine import analyze_text, theme_df, risk_df, codes_df, active_dimensions, active_indicators
-from modules.graphs import dimension_bar, risk_radar, ecosystem_network, sunburst
+from modules.ui import load_css, sidebar, hero, kpi, full_width
+from modules.engine import analyze_text, theme_df, risk_df, active_dimensions, active_indicators
+from modules.graphs import dimension_bar, risk_radar
 from config import APP_NAME, APP_SUBTITLE, APP_VERSION
 
 st.set_page_config(page_title=APP_NAME, page_icon='🛡️', layout='wide')
@@ -17,7 +17,7 @@ else:
     analysis = analyze_text(SAMPLE)
     st.info('No corpus analysed yet. The dashboard below shows a built-in sample sentence set. '
             'Use Upload and Analyse to analyse your own transcripts.')
-tdf = theme_df(analysis); rdf = risk_df(analysis); cdf = codes_df(analysis)
+tdf = theme_df(analysis); rdf = risk_df(analysis)
 
 st.markdown("### Executive Dashboard")
 c1,c2,c3,c4 = st.columns(4)
@@ -29,16 +29,16 @@ with c4: kpi('Words Analysed', f"{len(analysis['text'].split()):,}", 'current co
 left,right = st.columns([1.15,1])
 with left:
     st.markdown('### Ecosystem Dimension Strength')
-    st.plotly_chart(dimension_bar(tdf), use_container_width=True)
+    st.plotly_chart(dimension_bar(tdf), **full_width(st.plotly_chart))
 with right:
-    st.markdown('### Risk Indicator Radar')
-    st.plotly_chart(risk_radar(rdf), use_container_width=True)
+    st.markdown('### Warning Indicator Radar')
+    st.plotly_chart(risk_radar(rdf), **full_width(st.plotly_chart))
 
 st.markdown('### System Overview')
 st.markdown(f"""
 <div class='card'>
 <h2>{APP_NAME} {APP_VERSION}</h2>
-<p>{APP_SUBTITLE} converts interview transcripts into coding evidence, scam-risk indicators, stakeholder matrices, ecosystem maps and HTML/PDF reports.</p>
-<span class='success-pill'>Thematic Coding</span><span class='success-pill'>Risk Index</span><span class='success-pill'>HTML Report</span><span class='success-pill'>PDF Report</span>
+<p>{APP_SUBTITLE} codes interview transcripts against a transparent lexicon and reports coded evidence, a warning-signal index, indicator densities and HTML/PDF reports.</p>
+<span class='success-pill'>Thematic Coding</span><span class='success-pill'>Warning-signal Index</span><span class='success-pill'>HTML Report</span><span class='success-pill'>PDF Report</span>
 </div>
 """, unsafe_allow_html=True)

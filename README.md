@@ -23,24 +23,25 @@ The app opens at `http://localhost:8501`. No database or external service is nee
 
 ## Usage
 
-1. **Upload & Analyse**: upload one or more `.txt` / `.docx` transcripts (paragraphs and tables are read) or paste text, then click *Analyse Corpus*.
-2. **Dashboard** (`app.py`): risk score and band, active dimensions, active indicators, word count, dimension-strength bar chart and risk-indicator radar.
+1. **Upload and Analyse**: upload one or more `.txt` / `.docx` transcripts (paragraphs and tables are read) or paste text, then click *Analyse Corpus*. Under *Options* you can keep or remove speaker labels (`Officer A:`), choose which speakers' turns to exclude (default: `Interviewer`), and upload a custom lexicon (JSON). **Confidential transcripts should be analysed with a local installation**; text uploaded to a hosted instance is processed on that host.
+2. **Dashboard** (`app.py`): warning-signal index and band, active dimensions, active indicators, word count, dimension-strength bar chart and risk-indicator radar.
 3. **Thematic Evidence**: coding-evidence table (dimension, indicative code, verbatim extract), dimension sunburst and evidence extracts per dimension.
-4. **Ecosystem Map**: directed reference graph of scam actors and institutions, with the stakeholder action matrix.
+4. **Ecosystem Map**: directed reference graph of scam actors and institutions, with the stakeholder prevention matrix.
 5. **Framework Model**: IMSPF formulation and six prevention layers.
 6. **Report**: download the HTML report (standalone file) and the paginated A4 PDF report.
-7. **About**: system description.
+7. **About**: method summary, the full default lexicon, and a JSON export of it.
 
 ## Method
 
 All analysis is in `modules/engine.py`, which has no Streamlit dependency.
 
-- **Matching.** Text is lower-cased and each lexicon term is counted as a whole term (not inside a longer word), with an optional plural `s`/`es`. For example, `sc` matches “SC” but not “scam”.
+- **Pre-processing.** Speaker turns start with `Label:` at the beginning of a line; interviewer turns are removed and labels stripped (configurable). White space is collapsed and a lower-cased copy is used for matching.
+- **Matching.** Each lexicon term is matched as a whole term (not inside a longer word), with an optional ending `-s`, `-es`, `-d`, `-ed` or `-ing`. For example, `sc` matches "SC" but not "scam", and `guarantee` matches "guaranteed". Overlapping matches within one dimension or indicator (e.g. `high return` and `return`) are counted once.
 - **Thematic coding.** `THEME_KEYWORDS` maps eight ecosystem dimensions to keyword lists. A dimension's evidence frequency is the total number of keyword matches; up to five sentences per dimension are kept as evidence, each coded with the first keyword it contains.
 - **Risk index.** `RISK_RULES` maps eight warning indicators to keyword lists. Each indicator's hits are capped at `RISK_CAP = 5`, summed, and scaled to `score = floor(100 · Σ min(hits, 5) / (5 · 8))`. Bands: High ≥ 70, Moderate ≥ 35, otherwise Low. Because the cap makes the index saturate on long corpora, each indicator's uncapped density (matches per 1,000 words) is reported alongside it.
 - **Terms.** Tokens of four or more letters, minus a stop-word list, ranked by frequency.
 
-The analysis is deterministic: the same input always gives the same output. To add a dimension or indicator, extend `THEME_KEYWORDS` or `RISK_RULES`.
+The analysis is deterministic: the same text and lexicon always give the same output. Reports print the software version and SHA-256 fingerprints of the lexicon and the corpus. To change the lexicon, upload a JSON file with the structure `{"dimensions": {name: [terms]}, "indicators": {name: [terms]}}` (export the default from the About page), or edit `THEME_KEYWORDS` / `RISK_RULES` in `modules/engine.py`.
 
 ## Project structure
 
@@ -64,13 +65,14 @@ examples/              synthetic demo transcript and runtime benchmark
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                         # 21 tests; also run by GitHub Actions on Python 3.9, 3.11, 3.12
+pytest                         # 31 test cases; also run by GitHub Actions on Python 3.9, 3.11, 3.12
+pytest --cov=modules           # statement coverage
 python examples/benchmark.py   # engine runtime at 1k to 250k words
 ```
 
 ## Example data
 
-`examples/demo_transcript.txt` is a short **synthetic** transcript written for demonstration. It describes no real persons or cases. Upload it on the *Upload & Analyse* page to reproduce the walkthrough in the paper.
+`examples/demo_transcript.txt` is a short **synthetic** transcript written for demonstration. It describes no real persons or cases. Upload it on the *Upload and Analyse* page with the default options to reproduce the walkthrough in the paper (see `examples/README.md`).
 
 ## Deployment
 
@@ -78,7 +80,7 @@ The repository deploys directly to Streamlit Community Cloud with `app.py` as th
 
 ## Limitations
 
-The engine is lexicon-based and English-only and does not interpret context, so negations are counted and synonyms outside the lexicon are missed. Some terms belong to more than one dimension. The risk index is capped, so large corpora usually reach the upper band; use the per-1,000-word densities to compare corpora. The ecosystem map is a fixed reference structure, not derived from the uploaded text. Output is a first pass for human analysts, not a judgement about any individual case.
+The engine is lexicon-based and English-only and does not interpret context, so negations are counted and synonyms outside the lexicon are missed. General terms such as `account`, `bank` and `company` lower precision, and the default lexicon has not yet been validated against expert coding. Some terms belong to more than one dimension. The risk index is capped, so large corpora usually reach the upper band; use the per-1,000-word densities to compare corpora. The ecosystem map is a fixed reference structure, not derived from the uploaded text. Output is a first pass for human analysts, not a judgement about any individual case.
 
 ## Support
 
