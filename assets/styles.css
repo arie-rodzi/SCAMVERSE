@@ -6,15 +6,19 @@ section[data-testid="stSidebar"] * {color: #1B1F24 !important;}
 [data-testid="stSidebarNav"] a {border-radius: 4px; margin: 1px 6px;}
 [data-testid="stSidebarNav"] a:hover {background: #E6E9EE;}
 
-.hero {padding: 18px 0 14px 0; border-bottom: 2px solid #1F5FA8; margin-bottom: 20px;}
-.hero h1 {font-size: 34px; margin: 0; font-weight: 700; color: #1B1F24; letter-spacing: -0.5px;}
-.hero p {font-size: 16px; color: #545B66; font-weight: 400; margin: 4px 0 0 0;}
+.hero {padding: 22px 26px; border-radius: 6px; margin-bottom: 20px; background: linear-gradient(90deg, #1F4E86 0%, #1F5FA8 55%, #2a78d6 100%);}
+.hero h1 {font-size: 34px; margin: 0; font-weight: 700; color: #FFFFFF; letter-spacing: -0.5px;}
+.hero p {font-size: 16px; color: #DCE8F7; font-weight: 400; margin: 4px 0 0 0;}
 
 .card {padding: 16px 18px; border: 1px solid #D9DCE1; border-radius: 6px; background: #FFFFFF;}
 .card h2 {color: #1B1F24 !important; font-size: 20px; margin-top: 0;}
 .card p {color: #3A414B !important;}
 
-.kpi {padding: 14px 16px; border: 1px solid #D9DCE1; border-left: 4px solid #1F5FA8; border-radius: 4px; background: #FFFFFF; min-height: 104px;}
+.kpi {padding: 14px 16px; border: 1px solid #D9DCE1; border-top: 4px solid #1F5FA8; border-radius: 4px; background: #FFFFFF; min-height: 104px;}
+div[data-testid="stHorizontalBlock"] > div:nth-child(1) .kpi {border-top-color: #2a78d6;}
+div[data-testid="stHorizontalBlock"] > div:nth-child(2) .kpi {border-top-color: #1baf7a;}
+div[data-testid="stHorizontalBlock"] > div:nth-child(3) .kpi {border-top-color: #eb6834;}
+div[data-testid="stHorizontalBlock"] > div:nth-child(4) .kpi {border-top-color: #4a3aa7;}
 .kpi .label {color: #545B66; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;}
 .kpi .value {font-size: 30px; font-weight: 700; color: #1B1F24; line-height: 1.2; font-variant-numeric: tabular-nums;}
 .kpi .note {font-size: 12px; color: #6B7280; margin-top: 4px;}

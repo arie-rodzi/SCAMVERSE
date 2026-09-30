@@ -13,7 +13,6 @@ authors:
     affiliation: "Institute of Leadership and Development, Universiti Teknologi MARA"
   - family-names: "Kasim"
     given-names: "Eley Suzana"
-    email: "eley@uitm.edu.my"
     affiliation: "Accounting Research Institute, Universiti Teknologi MARA"
   - family-names: "Mohd Padil"
     given-names: "Hazlina"
@@ -27,6 +26,7 @@ authors:
   - family-names: "Md Rodzi"
     given-names: "Zahari"
     orcid: "https://orcid.org/0000-0003-4145-3340"
+    email: "zahari@uitm.edu.my"
     affiliation: "Faculty of Computer and Mathematical Sciences, Universiti Teknologi MARA Cawangan Negeri Sembilan"
 keywords:
   - research software

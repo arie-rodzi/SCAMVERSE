@@ -28,9 +28,11 @@ def _base(fig, height):
 
 def dimension_bar(df):
     d = df.sort_values("Evidence Frequency", ascending=True)
+    # colour identifies the dimension (fixed lexicon order), never its rank
+    colour = {k: CATEGORICAL[i % len(CATEGORICAL)] for i, k in enumerate(THEME_KEYWORDS)}
     fig = go.Figure(go.Bar(
         x=d["Evidence Frequency"], y=d["Dimension"], orientation="h",
-        marker=dict(color=ACCENT, line=dict(width=0)),
+        marker=dict(color=[colour.get(x, ACCENT) for x in d["Dimension"]], line=dict(width=0)),
         text=[f"{v}  ({w:.1%})" for v, w in zip(d["Evidence Frequency"], d["Relative Weight"])],
         textposition="outside", textfont=dict(color=INK_2, size=12), cliponaxis=False,
         hovertemplate="%{y}<br>%{x} matches<extra></extra>"))

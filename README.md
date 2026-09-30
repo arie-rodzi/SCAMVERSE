@@ -82,4 +82,4 @@ The engine is lexicon-based and English-only and does not interpret context, so 
 
 ## Support
 
-Eley Suzana Kasim: eley@uitm.edu.my
+Zahari Md Rodzi: zahari@uitm.edu.my
